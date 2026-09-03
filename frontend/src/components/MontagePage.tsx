@@ -212,7 +212,6 @@ export function MontagePage({
   const refreshPresets = async () => setPresets(await fetchMontagePresets());
   const savePreset = async (presetId?: number) => {
     try {
-      setExportStarting(true);
       const saved = await saveMontagePreset(presetName, settings, presetId);
       setActivePresetId(saved.id);
       setPresetError(null);

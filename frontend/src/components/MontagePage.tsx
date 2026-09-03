@@ -67,6 +67,60 @@ const editorReducer = (
   endPage: patch.endPage ?? state.endPage,
 });
 
+function MontageHeader({
+  totalFrames,
+  job,
+  exportStarting,
+  onBack,
+  onExport,
+}: {
+  totalFrames: number;
+  job: RenderJob | null;
+  exportStarting: boolean;
+  onBack: () => void;
+  onExport: () => void;
+}) {
+  return (
+    <Stack
+      component="header"
+      direction={{ xs: 'column', sm: 'row' }}
+      sx={{
+        alignItems: { xs: 'stretch', sm: 'center' },
+        gap: 2,
+        px: { xs: 2, sm: 3 },
+        py: 1.5,
+        borderBottom: 1,
+        borderColor: 'divider',
+        bgcolor: 'background.paper',
+      }}
+    >
+      <Button startIcon={<ArrowBackRounded />} onClick={onBack}>
+        Back to library
+      </Button>
+      <Box sx={{ mr: { sm: 'auto' } }}>
+        <Typography variant="h6">Montage</Typography>
+        <Typography variant="caption" color="text.secondary">
+          Total length: {formatDuration(totalFrames)}
+        </Typography>
+      </Box>
+      <Button
+        variant="contained"
+        startIcon={
+          job?.status === 'rendering' ? (
+            <CircularProgress size={16} color="inherit" />
+          ) : (
+            <DownloadRounded />
+          )
+        }
+        onClick={onExport}
+        disabled={exportStarting || Boolean(job && ['queued', 'rendering'].includes(job.status))}
+      >
+        Export 1080p MP4
+      </Button>
+    </Stack>
+  );
+}
+
 // fallow-ignore-next-line complexity -- editor settings are intentionally colocated with the shared preview state.
 export function MontagePage({
   ids,
@@ -236,43 +290,13 @@ export function MontagePage({
     );
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
-      <Stack
-        component="header"
-        direction={{ xs: 'column', sm: 'row' }}
-        sx={{
-          alignItems: { xs: 'stretch', sm: 'center' },
-          gap: 2,
-          px: { xs: 2, sm: 3 },
-          py: 1.5,
-          borderBottom: 1,
-          borderColor: 'divider',
-          bgcolor: 'background.paper',
-        }}
-      >
-        <Button startIcon={<ArrowBackRounded />} onClick={onBack}>
-          Back to library
-        </Button>
-        <Box sx={{ mr: { sm: 'auto' } }}>
-          <Typography variant="h6">Montage</Typography>
-          <Typography variant="caption" color="text.secondary">
-            Total length: {formatDuration(totalFrames)}
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={
-            job?.status === 'rendering' ? (
-              <CircularProgress size={16} color="inherit" />
-            ) : (
-              <DownloadRounded />
-            )
-          }
-          onClick={() => void startExport()}
-          disabled={exportStarting || Boolean(job && ['queued', 'rendering'].includes(job.status))}
-        >
-          Export 1080p MP4
-        </Button>
-      </Stack>
+      <MontageHeader
+        totalFrames={totalFrames}
+        job={job}
+        exportStarting={exportStarting}
+        onBack={onBack}
+        onExport={() => void startExport()}
+      />
       <Box
         sx={{
           display: 'grid',

@@ -102,19 +102,12 @@ function FiltersPanel({
     </aside>
   );
 }
-function Card({
-  item,
-  selected,
-  onClick,
-}: {
-  item: Video;
-  selected: boolean;
-  onClick: () => void;
-}) {
+function Card({ item, selected, onOpen }: { item: Video; selected: boolean; onOpen: () => void }) {
   return (
     <button
       className={`card ${item.orientation === 'landscape' ? 'landscape' : ''} ${selected ? 'selected' : ''}`}
-      onClick={onClick}
+      aria-label={`Open ${item.title} in lightbox`}
+      onClick={onOpen}
     >
       <img src={`${API}/videos/${item.id}/poster`} loading="lazy" />
       <span className="duration">{Math.round(item.duration_seconds || 0)}s</span>
@@ -123,6 +116,80 @@ function Card({
         {item.language || 'unknown'} · {item.review_status}
       </small>
     </button>
+  );
+}
+function Lightbox({
+  items,
+  item,
+  onClose,
+  onSelect,
+}: {
+  items: Video[];
+  item: Video;
+  onClose: () => void;
+  onSelect: (value: Video) => void;
+}) {
+  const closeButton = useRef<HTMLButtonElement | null>(null);
+  const index = Math.max(
+    0,
+    items.findIndex((candidate) => candidate.id === item.id),
+  );
+  const hasNeighbors = items.length > 1;
+  const selectOffset = (offset: number) =>
+    onSelect(items[(index + offset + items.length) % items.length]);
+
+  useEffect(() => {
+    closeButton.current?.focus();
+  }, [item.id]);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+      if (hasNeighbors && event.key === 'ArrowLeft') selectOffset(-1);
+      if (hasNeighbors && event.key === 'ArrowRight') selectOffset(1);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [hasNeighbors, index, items, onClose, onSelect]);
+
+  return (
+    <div
+      className="lightbox-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section className="lightbox" role="dialog" aria-modal="true" aria-label="Video lightbox">
+        <header className="lightbox-header">
+          <div>
+            <strong>{item.title}</strong>
+            <small>
+              {index + 1} of {items.length} · {item.language || 'unknown'} · {item.review_status}
+            </small>
+          </div>
+          <button ref={closeButton} className="lightbox-close" onClick={onClose}>
+            Close
+          </button>
+        </header>
+        <video
+          key={item.id}
+          autoPlay
+          controls
+          preload="metadata"
+          src={`${API}/videos/${item.id}/media`}
+          poster={`${API}/videos/${item.id}/poster`}
+        />
+        <footer className="lightbox-controls">
+          <button disabled={!hasNeighbors} onClick={() => selectOffset(-1)}>
+            Previous
+          </button>
+          <span>Use ← and → to browse</span>
+          <button disabled={!hasNeighbors} onClick={() => selectOffset(1)}>
+            Next
+          </button>
+        </footer>
+      </section>
+    </div>
   );
 }
 function ReferenceEditor({
@@ -315,6 +382,7 @@ function App() {
   const [filters, setFilters] = useState<Filters>({});
   const [data, setData] = useState<{ items: Video[]; total: number }>({ items: [], total: 0 });
   const [selected, setSelected] = useState<Video | null>(null);
+  const [lightboxId, setLightboxId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const sentinel = useRef<HTMLDivElement | null>(null);
@@ -353,6 +421,11 @@ function App() {
     observer.observe(node);
     return () => observer.disconnect();
   }, [filterKey, offset, data.total, data.items.length, loading]);
+  const lightboxItem = lightboxId ? data.items.find((item) => item.id === lightboxId) : null;
+  const openLightbox = (item: Video) => {
+    setSelected(item);
+    setLightboxId(item.id);
+  };
   return (
     <>
       <header>
@@ -392,7 +465,7 @@ function App() {
                 key={item.id}
                 item={item}
                 selected={item.id === selected?.id}
-                onClick={() => setSelected(item)}
+                onOpen={() => openLightbox(item)}
               />
             ))}
           </div>
@@ -412,6 +485,14 @@ function App() {
           }}
         />
       </main>
+      {lightboxItem && (
+        <Lightbox
+          items={data.items}
+          item={lightboxItem}
+          onClose={() => setLightboxId(null)}
+          onSelect={openLightbox}
+        />
+      )}
     </>
   );
 }

@@ -227,7 +227,7 @@ export function MontageComposition({ spec }: { spec: MontageSpec }) {
                   showBackdrop={
                     spec.fillMismatchedOrientation &&
                     (clip.width && clip.height
-                      ? clip.height > clip.width !== outputPortrait
+                      ? clip.width === clip.height || clip.height > clip.width !== outputPortrait
                       : (clip.orientation === 'portrait') !== outputPortrait)
                   }
                 />

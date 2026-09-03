@@ -87,7 +87,7 @@ export function CatalogToolbar({
           variant="outlined"
           size="small"
           onClick={onSelectAll}
-          sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+          sx={{ display: { xs: 'none', lg: 'inline-flex' } }}
         >
           Select all
         </Button>
@@ -96,7 +96,7 @@ export function CatalogToolbar({
           size="small"
           disabled={!montageSelectionCount}
           onClick={onUnselectAll}
-          sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+          sx={{ display: { xs: 'none', lg: 'inline-flex' } }}
         >
           Unselect all
         </Button>
@@ -113,7 +113,7 @@ export function CatalogToolbar({
           variant="text"
           size="small"
           onClick={onExports}
-          sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+          sx={{ display: { xs: 'none', lg: 'inline-flex' } }}
         >
           Generated videos
         </Button>
@@ -121,11 +121,11 @@ export function CatalogToolbar({
           label={`${total} videos`}
           size="small"
           variant="outlined"
-          sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+          sx={{ display: { xs: 'none', lg: 'inline-flex' } }}
         />
         <FormControl
           size="small"
-          sx={{ display: { xs: 'none', sm: 'inline-flex' }, minWidth: 154 }}
+          sx={{ display: { xs: 'none', lg: 'inline-flex' }, minWidth: 154 }}
         >
           <InputLabel id="sort-videos-label">Sort</InputLabel>
           <Select
@@ -152,7 +152,7 @@ export function CatalogToolbar({
             onChange={onToggleColorMode}
             icon={<Brightness7Rounded fontSize="small" />}
             checkedIcon={<Brightness4Rounded fontSize="small" />}
-            sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+            sx={{ display: { xs: 'none', lg: 'inline-flex' } }}
           />
         </Tooltip>
         <Button
@@ -160,14 +160,14 @@ export function CatalogToolbar({
           startIcon={<FileUploadRounded />}
           onClick={onReimport}
           disabled={importing}
-          sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+          sx={{ display: { xs: 'none', lg: 'inline-flex' } }}
         >
           {importing ? 'Importing…' : 'Import / Reimport'}
         </Button>
         <IconButton
           aria-label="More catalog actions"
           onClick={(event) => setMoreActionsAnchor(event.currentTarget)}
-          sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
+          sx={{ display: { xs: 'inline-flex', lg: 'none' } }}
         >
           <MoreVertRounded />
         </IconButton>

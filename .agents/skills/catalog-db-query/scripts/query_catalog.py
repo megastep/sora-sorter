@@ -8,6 +8,7 @@ import os
 import shutil
 import sqlite3
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -278,7 +279,10 @@ def download_montage(args: argparse.Namespace, job_id: str) -> Path:
         raise ValueError(f"Output already exists (use --force to replace it): {output}")
     output.parent.mkdir(parents=True, exist_ok=True)
     request = Request(api_url(args.server, f"/api/montages/{job_id}/download"))
-    partial = output.with_name(output.name + ".part")
+    with tempfile.NamedTemporaryFile(
+        dir=output.parent, prefix=f".{output.name}.", suffix=".part", delete=False
+    ) as temporary:
+        partial = Path(temporary.name)
     try:
         with urlopen(request, timeout=60) as response, partial.open("wb") as destination:
             shutil.copyfileobj(response, destination)

@@ -91,6 +91,7 @@ export function MontagePage({
   const [clipsReady, setClipsReady] = useState(false);
   const [clipsError, setClipsError] = useState<string | null>(null);
   const [presetsReady, setPresetsReady] = useState(false);
+  const [presetsError, setPresetsError] = useState<string | null>(null);
   const hasInitializedEditor = useRef(false);
   useEffect(() => {
     let active = true;
@@ -123,10 +124,15 @@ export function MontagePage({
     setPresetName(preset.name);
   };
   useEffect(() => {
-    void fetchMontagePresets().then((items) => {
-      setPresets(items);
-      setPresetsReady(true);
-    });
+    void fetchMontagePresets()
+      .then((items) => {
+        setPresets(items);
+        setPresetsReady(true);
+      })
+      .catch((error: unknown) => {
+        setPresetsError(error instanceof Error ? error.message : 'Could not load presets.');
+        setPresetsReady(true);
+      });
   }, []);
   // fallow-ignore-next-line complexity -- initial editor settings must atomically account for both loaded clips and presets.
   useEffect(() => {
@@ -287,7 +293,7 @@ export function MontagePage({
           activePresetId={activePresetId}
           presetName={presetName}
           job={job}
-          exportError={exportError}
+          exportError={exportError ?? presetsError}
           presetError={presetError}
           onChange={dispatchEditor}
           onPresetNameChange={(name) => {

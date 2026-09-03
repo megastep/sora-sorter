@@ -16,9 +16,14 @@ const formatDuration = (seconds: number | null) => {
 
 export function MontageExportsPage({ onBack }: { onBack: () => void }) {
   const [exports, setExports] = useState<MontageExport[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<number | null>(null);
   useEffect(() => {
-    void fetchMontageExports().then(setExports);
+    void fetchMontageExports()
+      .then(setExports)
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : 'Could not load generated montages.'),
+      );
   }, []);
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto', p: { xs: 2, md: 4 } }}>
@@ -32,7 +37,11 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
         Previously rendered MP4 files available on this device.
       </Typography>
       <Stack spacing={1.5}>
-        {exports.length === 0 ? (
+        {error ? (
+          <Paper role="alert" sx={{ p: 3, color: 'error.main' }}>
+            <Typography>{error}</Typography>
+          </Paper>
+        ) : exports.length === 0 ? (
           <Paper sx={{ p: 3 }}>
             <Typography>No generated montages yet.</Typography>
           </Paper>

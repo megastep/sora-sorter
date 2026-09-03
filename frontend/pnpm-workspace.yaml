@@ -3,3 +3,5 @@ blockExoticSubdeps: true
 trustPolicy: no-downgrade
 overrides:
   semver: ^7.7.4
+allowBuilds:
+  esbuild: true

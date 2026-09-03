@@ -21,6 +21,8 @@ has no accounts, and keeps its source code separate from the video files.
   poster frames with FFmpeg.
 - Lets you edit descriptions, transcripts, keywords, flags, likeness/reference
   evidence, review state, rating, favorites, publishability, and notes.
+- Lets you select clips in order and assemble a 1080p landscape or portrait
+  montage with Remotion previews, transitions, titles, and optional end pages.
 - Preserves editorial edits as SQLite overrides when you re-import the original
   analysis JSON.
 
@@ -64,7 +66,8 @@ data. Test both a fresh database and a catalog created by the prior version.
 
 - Python 3.11 or newer
 - [uv](https://docs.astral.sh/uv/), for the local Python environment
-- Node.js and [pnpm](https://pnpm.io/), for the React frontend
+- Node.js 22 or newer and [pnpm](https://pnpm.io/), for the React frontend and
+  Remotion montage renderer
 - [FFmpeg](https://ffmpeg.org/), to generate poster frames the first time each
   clip is displayed and to prepare audio and representative frames for analysis
 - Optional for analysis: Apple Silicon with
@@ -166,6 +169,7 @@ starts; variables explicitly supplied by your shell take precedence.
 | `VIDEO_CATALOG_DATABASE_PATH`    | `<library-root>/catalog.sqlite`     | SQLite catalog and editorial overrides.       |
 | `VIDEO_CATALOG_JSON_DIRECTORY`   | `<library-root>/video_catalog_json` | Analysis JSON to import.                      |
 | `VIDEO_CATALOG_POSTER_DIRECTORY` | `<library-root>/.catalog_posters`   | Lazily generated JPEG poster cache.           |
+| `VIDEO_CATALOG_MONTAGE_DIRECTORY` | `<library-root>/.catalog_montages` | Completed local Remotion MP4 exports.  |
 | `VIDEO_CATALOG_PORT`             | `8765`                              | Localhost port.                               |
 
 Every setting also has a command-line equivalent. Command-line values take

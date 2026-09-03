@@ -16,10 +16,17 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^9.3.1",
     "@mui/material": "^9.3.1",
+    "@remotion/bundler": "4.0.518",
+    "@remotion/media": "4.0.518",
+    "@remotion/player": "4.0.518",
+    "@remotion/renderer": "4.0.518",
+    "@remotion/transitions": "4.0.518",
     "@tanstack/react-query": "5.102.6",
     "@vitejs/plugin-react": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "react-router-dom": "7.9.6",
+    "remotion": "4.0.518",
     "vite": "latest"
   },
   "devDependencies": {

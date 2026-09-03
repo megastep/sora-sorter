@@ -4,6 +4,7 @@ import {
   CardActionArea,
   CardContent,
   CardMedia,
+  Checkbox,
   Chip,
   IconButton,
   Stack,
@@ -18,11 +19,15 @@ export function Card({
   selected,
   onSelect,
   onPlay,
+  selectionIndex,
+  onToggleSelection,
 }: {
   item: Video;
   selected: boolean;
   onSelect: () => void;
   onPlay: () => void;
+  selectionIndex: number;
+  onToggleSelection: () => void;
 }) {
   return (
     <MuiCard
@@ -66,6 +71,49 @@ export function Card({
             }}
           />
         </CardActionArea>
+        <Checkbox
+          checked={selectionIndex >= 0}
+          onClick={(event) => event.stopPropagation()}
+          onChange={onToggleSelection}
+          slotProps={{
+            input: {
+              'aria-label':
+                selectionIndex >= 0
+                  ? `Remove ${item.title} from montage selection`
+                  : `Add ${item.title} to montage selection`,
+            },
+          }}
+          icon={
+            <Box
+              sx={{
+                width: 24,
+                height: 24,
+                border: 2,
+                borderColor: 'common.white',
+                borderRadius: 0.75,
+                bgcolor: 'rgba(0,0,0,.45)',
+              }}
+            />
+          }
+          checkedIcon={
+            <Box
+              sx={{
+                width: 26,
+                height: 26,
+                borderRadius: 0.75,
+                bgcolor: 'primary.main',
+                color: 'primary.contrastText',
+                display: 'grid',
+                placeItems: 'center',
+                fontSize: 14,
+                fontWeight: 800,
+              }}
+            >
+              {selectionIndex + 1}
+            </Box>
+          }
+          sx={{ position: 'absolute', top: 5, left: 5, p: 0.5, color: 'common.white', zIndex: 2 }}
+        />
         <IconButton
           aria-label={`Play ${item.title}`}
           onClick={onPlay}

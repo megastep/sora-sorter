@@ -33,12 +33,22 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { fetchKeywordSummaries, fetchVideoPage, reimportCatalog, type VideoPage } from './api';
+import { useLocation, useNavigate } from 'react-router-dom';
+import {
+  fetchKeywordSummaries,
+  fetchSelectionIds,
+  fetchVideoPage,
+  reimportCatalog,
+  type VideoPage,
+} from './api';
 import { type Filters, type Video } from './catalog';
+import { addToSelection, selectionStorageKey, toggleSelection } from './montage';
 import { Card } from './components/Card';
 import { FiltersPanel } from './components/FiltersPanel';
 import { Inspector } from './components/Inspector';
 import { Lightbox } from './components/Lightbox';
+import { MontagePage } from './components/MontagePage';
+import { MontageExportsPage } from './components/MontageExportsPage';
 import { createCatalogTheme } from './theme';
 
 type ColorMode = 'light' | 'dark';
@@ -57,6 +67,18 @@ export function App() {
   const [importing, setImporting] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [colorMode, setColorMode] = useState<ColorMode>(initialColorMode);
+  const [montageSelection, setMontageSelection] = useState<string[]>(() => {
+    try {
+      const stored = JSON.parse(window.sessionStorage.getItem(selectionStorageKey) ?? '[]');
+      return Array.isArray(stored)
+        ? stored.filter((value): value is string => typeof value === 'string')
+        : [];
+    } catch {
+      return [];
+    }
+  });
+  const navigate = useNavigate();
+  const location = useLocation();
   const sentinel = useRef<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
   const desktopInspector = useMediaQuery('(min-width: 1280px)');
@@ -79,6 +101,9 @@ export function App() {
   useEffect(() => {
     window.localStorage.setItem('video-catalog-color-mode', colorMode);
   }, [colorMode]);
+  useEffect(() => {
+    window.sessionStorage.setItem(selectionStorageKey, JSON.stringify(montageSelection));
+  }, [montageSelection]);
 
   useEffect(() => {
     const node = sentinel.current;
@@ -125,6 +150,33 @@ export function App() {
       setImporting(false);
     }
   };
+  const appendAll = async () => {
+    const ids = await fetchSelectionIds(filters);
+    setMontageSelection((current) => addToSelection(current, ids));
+  };
+
+  if (location.pathname === '/montages') {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <MontageExportsPage onBack={() => navigate('/montage')} />
+      </ThemeProvider>
+    );
+  }
+
+  if (location.pathname === '/montage') {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <MontagePage
+          ids={montageSelection}
+          onBack={() => navigate('/')}
+          onReorder={setMontageSelection}
+          onExports={() => navigate('/montages')}
+        />
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider theme={theme}>
@@ -149,6 +201,28 @@ export function App() {
             </Box>
             Catalog
           </Typography>
+          <Button variant="outlined" size="small" onClick={() => void appendAll()}>
+            Select all
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            disabled={!montageSelection.length}
+            onClick={() => setMontageSelection([])}
+          >
+            Unselect all
+          </Button>
+          <Button
+            variant="contained"
+            size="small"
+            disabled={montageSelection.length < 2}
+            onClick={() => navigate('/montage')}
+          >
+            Montage{montageSelection.length ? ` (${montageSelection.length})` : ''}
+          </Button>
+          <Button variant="text" size="small" onClick={() => navigate('/montages')}>
+            Generated videos
+          </Button>
           <Chip
             label={`${total} videos`}
             size="small"
@@ -270,6 +344,10 @@ export function App() {
                 selected={item.id === selected?.id}
                 onSelect={() => setSelectedId(item.id)}
                 onPlay={() => openLightbox(item, true)}
+                selectionIndex={montageSelection.indexOf(item.id)}
+                onToggleSelection={() =>
+                  setMontageSelection((current) => toggleSelection(current, item.id))
+                }
               />
             ))}
           </Box>

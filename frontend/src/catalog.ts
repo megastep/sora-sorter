@@ -15,6 +15,8 @@ export type Video = {
   language: string;
   orientation: string;
   duration_seconds: number;
+  width?: number | null;
+  height?: number | null;
   keywords: string[];
   visible_text: string[];
   content_flags: string[];

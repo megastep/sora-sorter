@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from catalog_db import connect, import_directory, initialize, list_keywords, list_videos, migrate, update
+from catalog_db import connect, import_directory, initialize, list_keywords, list_video_ids, list_videos, migrate, update
 
 
 def analysis_record(summary: str) -> dict:
@@ -91,6 +91,24 @@ class CatalogDatabaseTests(unittest.TestCase):
         self.assertEqual([video["id"] for video in ascending], [ids["low"], ids["high"], ids["unrated"]])
         self.assertEqual([video["id"] for video in descending], [ids["high"], ids["low"], ids["unrated"]])
 
+    def test_selection_ids_follow_filters_and_catalog_sort_without_a_page_limit(self) -> None:
+        ids = [f"{index:064x}" for index in range(105)]
+        for index, video_id in enumerate(ids):
+            self.write_record(
+                "garden",
+                video_id=video_id,
+                filename=f"{index}.json",
+            )
+        import_directory(self.database, self.records)
+        for index, video_id in enumerate(ids):
+            if index % 2:
+                update(self.database, video_id, {"title": "forest"})
+
+        selected = list_video_ids(self.database, q="forest", sort="rating_desc")
+
+        self.assertEqual(len(selected), 52)
+        self.assertEqual(selected, sorted(selected))
+
     def test_keyword_summary_uses_effective_editorial_keywords(self) -> None:
         ids = {"garden": "a" * 64, "forest": "b" * 64, "lake": "c" * 64}
         for name, video_id in ids.items():
@@ -113,11 +131,16 @@ class CatalogDatabaseTests(unittest.TestCase):
         database = connect(self.root / "new-catalog.sqlite")
         self.addCleanup(database.close)
 
-        self.assertEqual(migrate(database), [1])
+        self.assertEqual(migrate(database), [1, 2, 3, 4])
         self.assertEqual(migrate(database), [])
         self.assertEqual(
             [tuple(row) for row in database.execute("SELECT version, name FROM schema_migrations")],
-            [(1, "initial_schema")],
+            [
+                (1, "initial_schema"),
+                (2, "montage_presets"),
+                (3, "montage_exports"),
+                (4, "montage_export_duration"),
+            ],
         )
 
     def test_migrations_adopt_a_legacy_catalog_without_changing_edits(self) -> None:
@@ -127,7 +150,7 @@ class CatalogDatabaseTests(unittest.TestCase):
         self.database.execute("DROP TABLE schema_migrations")
         self.database.commit()
 
-        self.assertEqual(migrate(self.database), [1])
+        self.assertEqual(migrate(self.database), [1, 2, 3, 4])
         videos, total = list_videos(self.database)
 
         self.assertEqual(total, 1)

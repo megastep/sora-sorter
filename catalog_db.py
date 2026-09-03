@@ -53,7 +53,47 @@ def _initial_schema(db: sqlite3.Connection) -> None:
         db.execute(statement)
 
 
-MIGRATIONS: tuple[Migration, ...] = ((1, "initial_schema", _initial_schema),)
+def _montage_presets_schema(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS montage_presets (
+          id INTEGER PRIMARY KEY,
+          name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          settings_json TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          last_used_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
+def _montage_exports_schema(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS montage_exports (
+          id INTEGER PRIMARY KEY,
+          job_id TEXT NOT NULL UNIQUE,
+          title TEXT NOT NULL,
+          filename TEXT NOT NULL,
+          generated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
+def _montage_export_duration_schema(db: sqlite3.Connection) -> None:
+    columns = {row["name"] for row in db.execute("PRAGMA table_info(montage_exports)")}
+    if "duration_seconds" not in columns:
+        db.execute("ALTER TABLE montage_exports ADD COLUMN duration_seconds REAL")
+
+
+MIGRATIONS: tuple[Migration, ...] = (
+    (1, "initial_schema", _initial_schema),
+    (2, "montage_presets", _montage_presets_schema),
+    (3, "montage_exports", _montage_exports_schema),
+    (4, "montage_export_duration", _montage_export_duration_schema),
+)
 
 
 def migrate(db: sqlite3.Connection) -> list[int]:
@@ -98,6 +138,85 @@ def migrate(db: sqlite3.Connection) -> list[int]:
 
 def initialize(db: sqlite3.Connection) -> None:
     migrate(db)
+
+
+def list_montage_presets(db: sqlite3.Connection) -> list[dict[str, Any]]:
+    return [
+        {**dict(row), "settings": json.loads(row["settings_json"])}
+        for row in db.execute(
+            "SELECT id, name, settings_json, last_used_at FROM montage_presets ORDER BY last_used_at DESC, id DESC"
+        )
+    ]
+
+
+def save_montage_preset(db: sqlite3.Connection, name: str, settings: dict[str, Any], preset_id: int | None = None) -> dict[str, Any]:
+    cleaned = name.strip()
+    if not 1 <= len(cleaned) <= 80:
+        raise ValueError("Preset name must be between 1 and 80 characters")
+    with db:
+        if preset_id is None:
+            cursor = db.execute(
+                "INSERT INTO montage_presets(name, settings_json) VALUES (?, ?)",
+                (cleaned, json.dumps(settings, ensure_ascii=False)),
+            )
+            preset_id = int(cursor.lastrowid)
+        else:
+            cursor = db.execute(
+                "UPDATE montage_presets SET name=?, settings_json=?, updated_at=CURRENT_TIMESTAMP, last_used_at=CURRENT_TIMESTAMP WHERE id=?",
+                (cleaned, json.dumps(settings, ensure_ascii=False), preset_id),
+            )
+            if not cursor.rowcount:
+                raise KeyError(preset_id)
+    return next(preset for preset in list_montage_presets(db) if preset["id"] == preset_id)
+
+
+def use_montage_preset(db: sqlite3.Connection, preset_id: int) -> None:
+    with db:
+        cursor = db.execute("UPDATE montage_presets SET last_used_at=CURRENT_TIMESTAMP WHERE id=?", (preset_id,))
+        if not cursor.rowcount:
+            raise KeyError(preset_id)
+
+
+def delete_montage_preset(db: sqlite3.Connection, preset_id: int) -> None:
+    with db:
+        cursor = db.execute("DELETE FROM montage_presets WHERE id=?", (preset_id,))
+        if not cursor.rowcount:
+            raise KeyError(preset_id)
+
+
+def record_montage_export(
+    db: sqlite3.Connection, job_id: str, title: str, filename: str, duration_seconds: float
+) -> None:
+    with db:
+        db.execute(
+            "INSERT OR REPLACE INTO montage_exports(job_id, title, filename, duration_seconds) VALUES (?, ?, ?, ?)",
+            (job_id, title, filename, duration_seconds),
+        )
+
+
+def list_montage_exports(db: sqlite3.Connection) -> list[dict[str, Any]]:
+    return [
+        dict(row)
+        for row in db.execute(
+            "SELECT id, title, filename, duration_seconds, generated_at FROM montage_exports ORDER BY generated_at DESC, id DESC"
+        )
+    ]
+
+
+def montage_export(db: sqlite3.Connection, export_id: int) -> dict[str, Any]:
+    row = db.execute(
+        "SELECT id, title, filename, duration_seconds, generated_at FROM montage_exports WHERE id=?", (export_id,)
+    ).fetchone()
+    if not row:
+        raise KeyError(export_id)
+    return dict(row)
+
+
+def delete_montage_export(db: sqlite3.Connection, export_id: int) -> None:
+    with db:
+        cursor = db.execute("DELETE FROM montage_exports WHERE id=?", (export_id,))
+        if not cursor.rowcount:
+            raise KeyError(export_id)
 
 
 def _list(value: Any) -> list[Any]:
@@ -192,7 +311,7 @@ def update(db: sqlite3.Connection, video_id: str, payload: dict[str, Any]) -> di
     return _effective(db, video_id)
 
 
-def list_videos(db: sqlite3.Connection, *, q: str = "", language: str = "", orientation: str = "", speech: str = "", review: str = "", favorite: str = "", publishable: str = "", flag: str = "", sort: str = "newest", limit: int = 48, offset: int = 0) -> tuple[list[dict[str, Any]], int]:
+def _video_query(*, q: str = "", language: str = "", orientation: str = "", speech: str = "", review: str = "", favorite: str = "", publishable: str = "", flag: str = "", sort: str = "newest") -> tuple[str, list[Any], str]:
     where = []; params: list[Any] = []
     terms = re.findall(r"[\w]+", q, flags=re.UNICODE)
     if terms:
@@ -205,7 +324,6 @@ def list_videos(db: sqlite3.Connection, *, q: str = "", language: str = "", orie
     if publishable in {"yes", "no"}: where.append("o.publishable=?"); params.append(int(publishable == "yes"))
     if flag: where.append("v.content_flags_json LIKE ?"); params.append(f'%"{flag}"%')
     clause = " WHERE " + " AND ".join(where) if where else ""
-    total = db.execute("SELECT count(*) FROM videos v JOIN overrides o ON o.video_id=v.id" + clause, params).fetchone()[0]
     orders = {
         "newest": "v.imported_at DESC, v.id",
         "oldest": "v.imported_at ASC, v.id",
@@ -216,7 +334,20 @@ def list_videos(db: sqlite3.Connection, *, q: str = "", language: str = "", orie
         "rating_desc": "o.rating IS NULL, o.rating DESC, v.id",
         "rating_asc": "o.rating IS NULL, o.rating ASC, v.id",
     }
-    rows = db.execute("SELECT v.id FROM videos v JOIN overrides o ON o.video_id=v.id" + clause + f" ORDER BY {orders.get(sort, orders['newest'])} LIMIT ? OFFSET ?", params + [min(max(limit, 1), 100), max(offset, 0)]).fetchall()
+    return clause, params, orders.get(sort, orders["newest"])
+
+
+def list_video_ids(db: sqlite3.Connection, **filters: str) -> list[str]:
+    clause, params, order = _video_query(**filters)
+    rows = db.execute("SELECT v.id FROM videos v JOIN overrides o ON o.video_id=v.id" + clause + f" ORDER BY {order}", params).fetchall()
+    return [row["id"] for row in rows]
+
+
+def list_videos(db: sqlite3.Connection, *, q: str = "", language: str = "", orientation: str = "", speech: str = "", review: str = "", favorite: str = "", publishable: str = "", flag: str = "", sort: str = "newest", limit: int = 48, offset: int = 0) -> tuple[list[dict[str, Any]], int]:
+    filters = {"q": q, "language": language, "orientation": orientation, "speech": speech, "review": review, "favorite": favorite, "publishable": publishable, "flag": flag, "sort": sort}
+    clause, params, order = _video_query(**filters)
+    total = db.execute("SELECT count(*) FROM videos v JOIN overrides o ON o.video_id=v.id" + clause, params).fetchone()[0]
+    rows = db.execute("SELECT v.id FROM videos v JOIN overrides o ON o.video_id=v.id" + clause + f" ORDER BY {order} LIMIT ? OFFSET ?", params + [min(max(limit, 1), 100), max(offset, 0)]).fetchall()
     return [_effective(db, row["id"]) for row in rows], total
 
 

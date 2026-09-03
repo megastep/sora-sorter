@@ -28,6 +28,8 @@ Use MUI controls and semantic tokens before local styling. Buttons have a 36px m
 
 Cards are poster-first. Clicking a poster selects it for editing; the play overlay opens playback. The selected state uses the primary outline and tint, not a new color. Media itself may use black as a neutral viewing surface.
 
+Montage selection is independent of inspector selection. Each card has a top-left checkbox; selected cards show their one-based montage order in Signal Blue. The Montage page uses the same shell, a black preview stage, a horizontally scrollable ordered timeline, and a narrow settings rail. Keep keyboard move controls alongside drag reordering.
+
 The filter rail keeps search and discovery together: a compact Keywords button directly below Search opens an outlined popover of clickable keyword pills, ordered alphabetically. Popular keywords use a restrained larger type scale; selecting a pill fills Search and closes the popover.
 
 ## Color Modes and Responsive Behavior

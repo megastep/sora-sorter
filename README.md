@@ -213,6 +213,38 @@ Use **Import / Reimport** after adding new JSON records or rerunning analysis.
 The import is idempotent: one record is kept per SHA-256 ID, imported data is
 refreshed, and saved descriptive/editorial overrides remain in place.
 
+### Catalog and montage CLI
+
+The repository agent skill includes a named-command CLI for querying catalog
+data and generating montages without accepting SQL or raw media paths. Query
+commands read SQLite directly; montage commands use the running localhost
+server and therefore require `uv run app.py` to be active.
+
+```sh
+# Find ordered clip IDs and inspect saved presets.
+uv run python .agents/skills/catalog-db-query/scripts/query_catalog.py \
+  --library-root /path/to/sora-library search "garden" --limit 20
+uv run python .agents/skills/catalog-db-query/scripts/query_catalog.py \
+  --format markdown presets
+
+# Render with a preset name or ID. Omit it to use the most recently used preset.
+# Generation waits for completion by default.
+uv run python .agents/skills/catalog-db-query/scripts/query_catalog.py \
+  generate --preset "Social portrait" <first-video-id> <second-video-id>
+
+# Queue without waiting, inspect a job later, or download its completed MP4.
+uv run python .agents/skills/catalog-db-query/scripts/query_catalog.py \
+  generate --preset 3 --no-wait <first-video-id> <second-video-id>
+uv run python .agents/skills/catalog-db-query/scripts/query_catalog.py \
+  job <job-id> --wait --output ./montage.mp4
+uv run python .agents/skills/catalog-db-query/scripts/query_catalog.py \
+  --format markdown montages
+```
+
+Set `VIDEO_CATALOG_SERVER` or pass global `--server` before the command when the
+app is running on a non-default local port. Downloads refuse to overwrite an
+existing file unless `--force` is supplied.
+
 ## Data and privacy
 
 - The server binds to `127.0.0.1` only; it is not exposed to your local network

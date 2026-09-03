@@ -28,9 +28,7 @@ function FittedVideo({
   showForeground = true,
   backdropBlur = 28,
   foregroundOpacity = 1,
-  audioFadeInFrames = 0,
-  audioFadeOutFrames = 0,
-  durationInFrames,
+  volume = 1,
 }: {
   src: string;
   muted?: boolean;
@@ -38,20 +36,8 @@ function FittedVideo({
   showForeground?: boolean;
   backdropBlur?: number;
   foregroundOpacity?: number;
-  audioFadeInFrames?: number;
-  audioFadeOutFrames?: number;
-  durationInFrames?: number;
+  volume?: number;
 }) {
-  const frame = useCurrentFrame();
-  const fadeIn = audioFadeInFrames
-    ? interpolate(frame, [0, audioFadeInFrames], [0, 1], { extrapolateRight: 'clamp' })
-    : 1;
-  const fadeOut =
-    audioFadeOutFrames && durationInFrames
-      ? interpolate(frame, [durationInFrames - audioFadeOutFrames, durationInFrames], [1, 0], {
-          extrapolateLeft: 'clamp',
-        })
-      : 1;
   return (
     <AbsoluteFill style={{ background: '#000', overflow: 'hidden' }}>
       {showBackdrop && (
@@ -73,7 +59,7 @@ function FittedVideo({
         <Video
           src={src}
           muted={muted}
-          volume={fadeIn * fadeOut}
+          volume={volume}
           style={{
             position: 'absolute',
             inset: 0,
@@ -87,6 +73,32 @@ function FittedVideo({
       )}
     </AbsoluteFill>
   );
+}
+
+function TimedFittedVideo({
+  src,
+  durationInFrames,
+  audioFadeInFrames = 0,
+  audioFadeOutFrames = 0,
+  showBackdrop,
+}: {
+  src: string;
+  durationInFrames: number;
+  audioFadeInFrames?: number;
+  audioFadeOutFrames?: number;
+  showBackdrop: boolean;
+}) {
+  const frame = useCurrentFrame();
+  const fadeIn = audioFadeInFrames
+    ? interpolate(frame, [0, audioFadeInFrames], [0, 1], { extrapolateRight: 'clamp' })
+    : 1;
+  const fadeOut =
+    audioFadeOutFrames && durationInFrames
+      ? interpolate(frame, [durationInFrames - audioFadeOutFrames, durationInFrames], [1, 0], {
+          extrapolateLeft: 'clamp',
+        })
+      : 1;
+  return <FittedVideo src={src} showBackdrop={showBackdrop} volume={fadeIn * fadeOut} />;
 }
 
 // fallow-ignore-next-line complexity -- shared animated title/end-card component keeps timing identical for preview and export.
@@ -215,7 +227,7 @@ export function MontageComposition({ spec }: { spec: MontageSpec }) {
           {spec.clips.map((clip, index) => (
             <Fragment key={clip.id}>
               <TransitionSeries.Sequence durationInFrames={frames(clip.duration_seconds)}>
-                <FittedVideo
+                <TimedFittedVideo
                   src={clip.media_url}
                   durationInFrames={frames(clip.duration_seconds)}
                   audioFadeInFrames={spec.transition !== 'cut' && index > 0 ? transitionFrames : 0}

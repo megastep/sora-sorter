@@ -39,6 +39,9 @@ const formatDuration = (totalFrames: number) => {
   return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
 };
 
+const isMissingRenderJob = (error: unknown) =>
+  error instanceof Error && error.message.includes('(404)');
+
 const initialEditorState: MontageSettings = {
   format: 'landscape',
   fillMismatchedOrientation: true,
@@ -148,6 +151,7 @@ export function MontagePage({
   const [presetsReady, setPresetsReady] = useState(false);
   const [presetsError, setPresetsError] = useState<string | null>(null);
   const hasInitializedEditor = useRef(false);
+  const statusFailureCount = useRef(0);
   useEffect(() => {
     let active = true;
     // fallow-ignore-next-line complexity -- initializes title and orientation together from the selected first clip.
@@ -239,16 +243,29 @@ export function MontagePage({
     const timer = window.setInterval(
       () =>
         void fetchRenderJob(job.id)
-          .then(setJob)
+          .then((nextJob) => {
+            statusFailureCount.current = 0;
+            setExportError(null);
+            setJob(nextJob);
+          })
           .catch((error: unknown) => {
-            setJob((current) =>
-              current
-                ? {
-                    ...current,
-                    status: 'failed',
-                    error: error instanceof Error ? error.message : 'Export status is unavailable.',
-                  }
-                : current,
+            const message =
+              error instanceof Error ? error.message : 'Export status is unavailable.';
+            if (isMissingRenderJob(error)) {
+              setJob((current) =>
+                current
+                  ? {
+                      ...current,
+                      status: 'failed',
+                      error: message,
+                    }
+                  : current,
+              );
+              return;
+            }
+            statusFailureCount.current += 1;
+            setExportError(
+              `Could not refresh export progress (attempt ${statusFailureCount.current}); retrying.`,
             );
           }),
       900,

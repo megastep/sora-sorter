@@ -34,9 +34,7 @@ export function FiltersPanel({
   return (
     <Stack spacing={2.25} sx={{ p: 2.25 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-          Filters
-        </Typography>
+        <Typography variant="subtitle1">Filters</Typography>
         <Button
           size="small"
           onClick={() => {

@@ -6,6 +6,7 @@
 - `catalog_db.py` owns SQLite schema initialization, JSON imports, search, filtering, and editorial updates.
 - `scripts/process_videos.py` is the optional video-analysis and deduplication pipeline.
 - `frontend/src/` contains the React/TypeScript gallery. Keep reusable UI in `components/`, API calls in `api.ts`, shared catalog types in `catalog.ts`, and styling in `style.css` or `layout.css`.
+- `DESIGN.md` is the UI source of truth. Update its token and component guidance whenever a shared visual rule changes; implement those rules in `frontend/src/theme.ts` rather than adding one-off component styles.
 - Generated `frontend/dist/`, local `.env`, SQLite files, poster caches, media libraries, and analysis output are not source files and must remain uncommitted.
 
 ## Build, Test, and Development Commands
@@ -39,6 +40,10 @@ pnpm --dir frontend build
 ## Coding Style & Naming Conventions
 
 Python uses four-space indentation, type hints, `snake_case` functions, and `PascalCase` classes. TypeScript is strict; use two-space indentation, single quotes, semicolons, `PascalCase` React components, and `camelCase` variables. Prettier enforces a 100-column width and trailing commas; ESLint enforces TypeScript and React Hooks rules. Run `pnpm --dir frontend format` to apply formatting.
+
+## Design System
+
+Follow [DESIGN.md](DESIGN.md) for colors, type, spacing, component states, and responsive behavior. Use MUI semantic palette values and component theme overrides first; reserve local `sx` styling for layout or media-specific behavior.
 
 ## Testing Guidelines
 

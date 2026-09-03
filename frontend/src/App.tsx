@@ -17,7 +17,7 @@ import {
   Toolbar,
   Tooltip,
   Typography,
-  createTheme,
+  useMediaQuery,
 } from '@mui/material';
 import {
   Brightness4Rounded,
@@ -34,6 +34,7 @@ import { Card } from './components/Card';
 import { FiltersPanel } from './components/FiltersPanel';
 import { Inspector } from './components/Inspector';
 import { Lightbox } from './components/Lightbox';
+import { createCatalogTheme } from './theme';
 
 type ColorMode = 'light' | 'dark';
 
@@ -53,31 +54,8 @@ export function App() {
   const [colorMode, setColorMode] = useState<ColorMode>(initialColorMode);
   const sentinel = useRef<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
-  const theme = useMemo(
-    () =>
-      createTheme({
-        palette: {
-          mode: colorMode,
-          primary: { main: '#5b5ce2' },
-          background:
-            colorMode === 'dark'
-              ? { default: '#0b111a', paper: '#131c28' }
-              : { default: '#f6f7fb', paper: '#ffffff' },
-        },
-        shape: { borderRadius: 12 },
-        typography: {
-          fontFamily:
-            'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
-          button: { fontWeight: 700, textTransform: 'none' },
-        },
-        components: {
-          MuiPaper: { defaultProps: { elevation: 0 } },
-          MuiOutlinedInput: { styleOverrides: { root: { borderRadius: 10 } } },
-          MuiButton: { defaultProps: { disableElevation: true } },
-        },
-      }),
-    [colorMode],
-  );
+  const desktopInspector = useMediaQuery('(min-width: 1280px)');
+  const theme = useMemo(() => createCatalogTheme(colorMode), [colorMode]);
   const videos = useInfiniteQuery({
     queryKey: ['videos', filters],
     initialPageParam: 0,
@@ -89,7 +67,7 @@ export function App() {
   });
   const items = videos.data?.pages.flatMap((page) => page.items) ?? [];
   const total = videos.data?.pages[0]?.total ?? 0;
-  const selected = items.find((item) => item.id === selectedId) ?? items[0] ?? null;
+  const selected = selectedId ? (items.find((item) => item.id === selectedId) ?? null) : null;
   const lightboxItem = lightboxId ? items.find((item) => item.id === lightboxId) : null;
 
   useEffect(() => {
@@ -155,12 +133,11 @@ export function App() {
             </IconButton>
           </Tooltip>
           <VideoLibraryRounded color="primary" />
-          <Typography
-            variant="h6"
-            component="h1"
-            sx={{ fontWeight: 800, letterSpacing: '-0.02em', mr: 'auto' }}
-          >
-            Video Catalog
+          <Typography variant="h6" component="h1" sx={{ mr: 'auto', whiteSpace: 'nowrap' }}>
+            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+              Video{' '}
+            </Box>
+            Catalog
           </Typography>
           <Chip
             label={`${total} videos`}
@@ -210,7 +187,9 @@ export function App() {
         sx={{
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', lg: '264px minmax(0, 1fr)' },
-          '@media (min-width: 1280px)': { gridTemplateColumns: '264px minmax(0, 1fr) 390px' },
+          '@media (min-width: 1280px)': {
+            gridTemplateColumns: selected ? '264px minmax(0, 1fr) 390px' : '264px minmax(0, 1fr)',
+          },
           minHeight: 'calc(100vh - 64px)',
         }}
       >
@@ -236,9 +215,7 @@ export function App() {
             sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}
           >
             <Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                Library
-              </Typography>
+              <Typography variant="subtitle1">Library</Typography>
               <Typography variant="body2" color="text.secondary">
                 Browse, review, and refine your clips.
               </Typography>
@@ -291,8 +268,28 @@ export function App() {
                   : 'All videos loaded'}
           </Typography>
         </Box>
-        {selected && <Inspector key={selected.id} item={selected} onSaved={saveVideo} />}
+        {selected && desktopInspector && (
+          <Inspector
+            key={selected.id}
+            item={selected}
+            onSaved={saveVideo}
+            onClose={() => setSelectedId(null)}
+          />
+        )}
       </Box>
+      {selected && !desktopInspector && (
+        <Drawer anchor="right" open onClose={() => setSelectedId(null)}>
+          <Box sx={{ width: { xs: '100vw', sm: 440 }, maxWidth: '100vw', height: '100%' }}>
+            <Inspector
+              key={selected.id}
+              item={selected}
+              onSaved={saveVideo}
+              onClose={() => setSelectedId(null)}
+              drawer
+            />
+          </Box>
+        </Drawer>
+      )}
       {lightboxItem && (
         <Lightbox
           items={items}
@@ -302,7 +299,10 @@ export function App() {
             setLightboxId(null);
             setLightboxAutoplay(false);
           }}
-          onSelect={(item) => setLightboxId(item.id)}
+          onSelect={(item) => {
+            setSelectedId(item.id);
+            setLightboxId(item.id);
+          }}
         />
       )}
     </ThemeProvider>

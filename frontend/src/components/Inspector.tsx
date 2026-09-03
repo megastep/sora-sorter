@@ -3,12 +3,14 @@ import {
   AccordionDetails,
   AccordionSummary,
   Alert,
+  Autocomplete,
   Box,
   Button,
   Checkbox,
   Divider,
   FormControl,
   FormControlLabel,
+  IconButton,
   InputLabel,
   MenuItem,
   Paper,
@@ -18,16 +20,45 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { ExpandMoreRounded, SaveRounded } from '@mui/icons-material';
+import { CloseRounded, ExpandMoreRounded, SaveRounded } from '@mui/icons-material';
 import { useState } from 'react';
 import { API, toDraft, type Draft, type ReviewStatus, type Video } from '../catalog';
+import { catalogDesign } from '../theme';
 import { ReferenceEditor } from './ReferenceEditor';
 
-export function Inspector({ item, onSaved }: { item: Video; onSaved: (value: Video) => void }) {
+export const normalizeKeywords = (values: readonly string[]) => {
+  const seen = new Set<string>();
+  const keywords: string[] = [];
+
+  for (const entry of values) {
+    for (const part of entry.split(',')) {
+      const keyword = part.trim();
+      const key = keyword.toLowerCase();
+      if (!keyword || seen.has(key)) continue;
+      seen.add(key);
+      keywords.push(keyword);
+    }
+  }
+
+  return keywords;
+};
+
+export function Inspector({
+  item,
+  onSaved,
+  onClose,
+  drawer = false,
+}: {
+  item: Video;
+  onSaved: (value: Video) => void;
+  onClose: () => void;
+  drawer?: boolean;
+}) {
   const [draft, setDraft] = useState<Draft>(() => toDraft(item));
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [keywordInput, setKeywordInput] = useState('');
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     setSaved(false);
@@ -83,36 +114,46 @@ export function Inspector({ item, onSaved }: { item: Video; onSaved: (value: Vid
       component="aside"
       square
       sx={{
-        gridColumn: { xs: 'auto', lg: '1 / -1' },
-        borderTop: { xs: 1, lg: 1 },
+        gridColumn: drawer ? 'auto' : { xs: 'auto', lg: '1 / -1' },
+        borderTop: drawer ? 0 : { xs: 1, lg: 1 },
         borderLeft: 0,
         borderColor: 'divider',
         p: 2.25,
         minWidth: 0,
         alignSelf: 'start',
-        '@media (min-width: 1280px)': {
-          gridColumn: 'auto',
-          borderTop: 0,
-          borderLeft: 1,
-          position: 'sticky',
-          top: 64,
-          maxHeight: 'calc(100vh - 64px)',
-          overflowY: 'auto',
-        },
+        ...(drawer
+          ? { height: '100%', overflowY: 'auto' }
+          : {
+              '@media (min-width: 1280px)': {
+                gridColumn: 'auto',
+                borderTop: 0,
+                borderLeft: 1,
+                position: 'sticky',
+                top: 64,
+                maxHeight: 'calc(100vh - 64px)',
+                overflowY: 'auto',
+              },
+            }),
       }}
     >
       <Stack spacing={2}>
-        <Box>
-          <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-            Inspector
-          </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="subtitle1">Inspector</Typography>
+          <IconButton aria-label="Close inspector" onClick={onClose} size="small">
+            <CloseRounded fontSize="small" />
+          </IconButton>
         </Box>
         <Box
           component="video"
           controls
           src={`${API}/videos/${draft.id}/media`}
           poster={`${API}/videos/${draft.id}/poster`}
-          sx={{ width: '100%', maxHeight: 300, bgcolor: 'common.black', borderRadius: 2 }}
+          sx={{
+            width: '100%',
+            maxHeight: 300,
+            bgcolor: 'common.black',
+            borderRadius: `${catalogDesign.radius.card}px`,
+          }}
         />
         <TextField
           label="Title"
@@ -120,7 +161,37 @@ export function Inspector({ item, onSaved }: { item: Video; onSaved: (value: Vid
           onChange={(event) => set('title', event.target.value)}
           fullWidth
         />
-        {lines('keywords', 'Keywords (one per line)')}
+        <Autocomplete<string, true, false, true>
+          multiple
+          freeSolo
+          autoSelect
+          options={[]}
+          value={draft.keywords}
+          inputValue={keywordInput}
+          onChange={(_, values) => {
+            set('keywords', normalizeKeywords(values));
+            setKeywordInput('');
+          }}
+          onInputChange={(_, value, reason) => {
+            if (reason !== 'input' || !value.includes(',')) {
+              setKeywordInput(value);
+              return;
+            }
+
+            const parts = value.split(',');
+            const pending = parts.pop() ?? '';
+            const keywords = normalizeKeywords([...draft.keywords, ...parts]);
+            if (keywords.length !== draft.keywords.length) set('keywords', keywords);
+            setKeywordInput(pending);
+          }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Keywords"
+              placeholder="Add a keyword, then press Enter or comma"
+            />
+          )}
+        />
         <TextField
           label="Language"
           value={draft.language ?? ''}

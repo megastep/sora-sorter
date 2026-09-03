@@ -10,6 +10,7 @@ import {
   Typography,
 } from '@mui/material';
 import PlayArrowRounded from '@mui/icons-material/PlayArrowRounded';
+import { alpha } from '@mui/material/styles';
 import { API, type Video } from '../catalog';
 
 export function Card({
@@ -33,7 +34,9 @@ export function Card({
         position: 'relative',
         overflow: 'hidden',
         borderColor: selected ? 'primary.main' : 'divider',
-        boxShadow: selected ? 3 : 0,
+        boxShadow: selected
+          ? (theme) => `0 10px 24px ${alpha(theme.palette.primary.main, 0.16)}`
+          : 0,
       }}
     >
       <Box
@@ -102,7 +105,7 @@ export function Card({
             direction="row"
             sx={{ justifyContent: 'space-between', alignItems: 'start', gap: 1 }}
           >
-            <Typography variant="subtitle2" sx={{ minWidth: 0, fontWeight: 800 }}>
+            <Typography variant="subtitle2" sx={{ minWidth: 0 }}>
               {item.title}
             </Typography>
             <Chip

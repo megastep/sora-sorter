@@ -105,7 +105,7 @@ export function CatalogToolbar({
           size="small"
           disabled={montageSelectionCount < 2}
           onClick={onMontage}
-          sx={{ whiteSpace: 'nowrap' }}
+          sx={{ display: { xs: 'none', lg: 'inline-flex' }, whiteSpace: 'nowrap' }}
         >
           Montage{montageSelectionCount ? ` (${montageSelectionCount})` : ''}
         </Button>
@@ -176,6 +176,15 @@ export function CatalogToolbar({
           open={Boolean(moreActionsAnchor)}
           onClose={closeMoreActions}
         >
+          <MenuItem
+            disabled={montageSelectionCount < 2}
+            onClick={() => {
+              onMontage();
+              closeMoreActions();
+            }}
+          >
+            Montage{montageSelectionCount ? ` (${montageSelectionCount})` : ''}
+          </MenuItem>
           <MenuItem
             onClick={() => {
               onSelectAll();

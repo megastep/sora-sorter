@@ -286,10 +286,13 @@ def download_montage(args: argparse.Namespace, job_id: str) -> Path:
     except OSError as error:
         raise ValueError(f"Could not prepare output directory for {output}: {error}") from None
     request = Request(api_url(args.server, f"/api/montages/{job_id}/download"))
-    with tempfile.NamedTemporaryFile(
-        dir=output.parent, prefix=f".{output.name}.", suffix=".part", delete=False
-    ) as temporary:
-        partial = Path(temporary.name)
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=output.parent, prefix=f".{output.name}.", suffix=".part", delete=False
+        ) as temporary:
+            partial = Path(temporary.name)
+    except OSError as error:
+        raise ValueError(f"Could not prepare download output for {output}: {error}") from None
     try:
         with urlopen(request, timeout=60) as response, partial.open("wb") as destination:
             shutil.copyfileobj(response, destination)

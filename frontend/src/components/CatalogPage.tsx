@@ -46,6 +46,7 @@ export function CatalogPage({
   const [lightboxId, setLightboxId] = useState<string | null>(null);
   const [lightboxAutoplay, setLightboxAutoplay] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const sentinel = useRef<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
@@ -111,8 +112,13 @@ export function CatalogPage({
     }
   };
   const appendAll = async () => {
-    const ids = await fetchSelectionIds(filters);
-    setMontageSelection((current) => addToSelection(current, ids));
+    try {
+      const ids = await fetchSelectionIds(filters);
+      setMontageSelection((current) => addToSelection(current, ids));
+      setSelectionError(null);
+    } catch (error) {
+      setSelectionError(error instanceof Error ? error.message : 'Could not select videos.');
+    }
   };
   const loadingMessage = videos.isLoading
     ? 'Loading videos…'
@@ -139,6 +145,11 @@ export function CatalogPage({
         onToggleColorMode={onToggleColorMode}
         onReimport={() => void reimport()}
       />
+      {selectionError && (
+        <Paper role="alert" sx={{ m: 2, p: 2, color: 'error.main' }}>
+          {selectionError}
+        </Paper>
+      )}
       <Box
         sx={{
           display: 'grid',

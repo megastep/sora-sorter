@@ -37,7 +37,7 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
         Previously rendered MP4 files available on this device.
       </Typography>
       <Stack spacing={1.5}>
-        {error ? (
+        {error && exports.length === 0 ? (
           <Paper role="alert" sx={{ p: 3, color: 'error.main' }}>
             <Typography>{error}</Typography>
           </Paper>
@@ -109,6 +109,7 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
             </Paper>
           ))
         )}
+        {error && exports.length > 0 && <Typography color="error.main">{error}</Typography>}
       </Stack>
     </Box>
   );

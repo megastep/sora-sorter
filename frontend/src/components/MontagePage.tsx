@@ -87,6 +87,7 @@ export function MontagePage({
   const [job, setJob] = useState<RenderJob | null>(null);
   const [accelerationReason, setAccelerationReason] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [exportStarting, setExportStarting] = useState(false);
   const [presetError, setPresetError] = useState<string | null>(null);
   const [clipsReady, setClipsReady] = useState(false);
   const [clipsError, setClipsError] = useState<string | null>(null);
@@ -157,6 +158,7 @@ export function MontagePage({
   const refreshPresets = async () => setPresets(await fetchMontagePresets());
   const savePreset = async (presetId?: number) => {
     try {
+      setExportStarting(true);
       const saved = await saveMontagePreset(presetName, settings, presetId);
       setActivePresetId(saved.id);
       setPresetError(null);
@@ -216,6 +218,8 @@ export function MontagePage({
       setJob(await renderMontage(spec, softwareFallback));
     } catch (error) {
       setExportError(error instanceof Error ? error.message : 'Could not start the export.');
+    } finally {
+      setExportStarting(false);
     }
   };
   if (clips.length < 2)
@@ -264,7 +268,7 @@ export function MontagePage({
             )
           }
           onClick={() => void startExport()}
-          disabled={Boolean(job && ['queued', 'rendering'].includes(job.status))}
+          disabled={exportStarting || Boolean(job && ['queued', 'rendering'].includes(job.status))}
         >
           Export 1080p MP4
         </Button>

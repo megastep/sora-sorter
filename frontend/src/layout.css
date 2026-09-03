@@ -1,12 +1,69 @@
 /* Keep one page scroll context: the inspector grows beside the gallery. */
-.inspector { max-height: none; overflow: visible; }
-.card.landscape img { aspect-ratio: 16 / 9; }
-header { position: sticky; top: 0; z-index: 2; background: #fff; }
-.inspector { position: sticky; top: 64px; align-self: start; height: calc(100vh - 64px); overflow-y: auto; }
-@media (max-width: 1000px) { .inspector { position: static; height: auto; overflow: visible; } }
-.gallery-load { padding: 28px 0 64px; text-align: center; color: #697386; font-size: 12px; }
-.references { display: grid; gap: 8px; padding-top: 8px; }
-.reference { display: grid; grid-template-columns: minmax(0, 1fr) 92px; gap: 6px; margin: 0; padding: 9px; border: 1px solid #d7dde6; border-radius: 5px; min-width: 0; }
-.reference textarea { grid-column: 1 / -1; min-height: 64px; }
-.reference .remove-reference { justify-self: start; border: 0; background: transparent; color: #b42318; padding: 2px 0; font-size: 12px; }
-.add-reference { justify-self: start; border: 1px solid #cfd6e0; background: #fff; border-radius: 5px; padding: 7px 9px; font-size: 12px; }
+.inspector {
+  max-height: none;
+  overflow: visible;
+}
+.card.landscape img {
+  aspect-ratio: 16 / 9;
+}
+header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fff;
+}
+.inspector {
+  position: sticky;
+  top: 64px;
+  align-self: start;
+  height: calc(100vh - 64px);
+  overflow-y: auto;
+}
+@media (max-width: 1000px) {
+  .inspector {
+    position: static;
+    height: auto;
+    overflow: visible;
+  }
+}
+.gallery-load {
+  padding: 28px 0 64px;
+  text-align: center;
+  color: #697386;
+  font-size: 12px;
+}
+.references {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+}
+.reference {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  gap: 6px;
+  margin: 0;
+  padding: 9px;
+  border: 1px solid #d7dde6;
+  border-radius: 5px;
+  min-width: 0;
+}
+.reference textarea {
+  grid-column: 1 / -1;
+  min-height: 64px;
+}
+.reference .remove-reference {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: #b42318;
+  padding: 2px 0;
+  font-size: 12px;
+}
+.add-reference {
+  justify-self: start;
+  border: 1px solid #cfd6e0;
+  background: #fff;
+  border-radius: 5px;
+  padding: 7px 9px;
+  font-size: 12px;
+}

@@ -1,5 +1,4 @@
 import {
-  OffthreadVideo,
   AbsoluteFill,
   Freeze,
   interpolate,
@@ -7,6 +6,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
+import { Video } from '@remotion/media';
 import { Fragment } from 'react';
 import { TransitionSeries, linearTiming } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
@@ -38,7 +38,7 @@ function FittedVideo({
   return (
     <AbsoluteFill style={{ background: '#000', overflow: 'hidden' }}>
       {showBackdrop && (
-        <OffthreadVideo
+        <Video
           src={src}
           muted
           style={{
@@ -53,7 +53,7 @@ function FittedVideo({
         />
       )}
       {showForeground && (
-        <OffthreadVideo
+        <Video
           src={src}
           muted={muted}
           style={{

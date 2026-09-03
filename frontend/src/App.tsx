@@ -1,38 +1,11 @@
-import {
-  AppBar,
-  Box,
-  Button,
-  Chip,
-  CssBaseline,
-  Drawer,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Paper,
-  Select,
-  Stack,
-  Switch,
-  ThemeProvider,
-  Toolbar,
-  Tooltip,
-  Typography,
-  useMediaQuery,
-} from '@mui/material';
-import {
-  Brightness4Rounded,
-  Brightness7Rounded,
-  FileUploadRounded,
-  FilterListRounded,
-  VideoLibraryRounded,
-} from '@mui/icons-material';
+import { CssBaseline, ThemeProvider, useMediaQuery } from '@mui/material';
 import {
   type InfiniteData,
   useInfiniteQuery,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   fetchKeywordSummaries,
@@ -43,15 +16,11 @@ import {
 } from './api';
 import { type Filters, type Video } from './catalog';
 import { addToSelection, selectionStorageKey, toggleSelection } from './montage';
-import { Card } from './components/Card';
-import { FiltersPanel } from './components/FiltersPanel';
-import { Inspector } from './components/Inspector';
-import { Lightbox } from './components/Lightbox';
+import { CatalogToolbar, type ColorMode } from './components/CatalogToolbar';
+import { CatalogWorkspace } from './components/CatalogWorkspace';
 import { MontagePage } from './components/MontagePage';
 import { MontageExportsPage } from './components/MontageExportsPage';
 import { createCatalogTheme } from './theme';
-
-type ColorMode = 'light' | 'dark';
 
 const initialColorMode = (): ColorMode => {
   const saved = window.localStorage.getItem('video-catalog-color-mode');
@@ -79,7 +48,6 @@ export function App() {
   });
   const navigate = useNavigate();
   const location = useLocation();
-  const sentinel = useRef<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
   const desktopInspector = useMediaQuery('(min-width: 1280px)');
   const theme = useMemo(() => createCatalogTheme(colorMode), [colorMode]);
@@ -104,19 +72,6 @@ export function App() {
   useEffect(() => {
     window.sessionStorage.setItem(selectionStorageKey, JSON.stringify(montageSelection));
   }, [montageSelection]);
-
-  useEffect(() => {
-    const node = sentinel.current;
-    if (!node || !videos.hasNextPage || videos.isFetchingNextPage) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) void videos.fetchNextPage();
-      },
-      { rootMargin: '500px' },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [videos.fetchNextPage, videos.hasNextPage, videos.isFetchingNextPage]);
 
   const openLightbox = (item: Video, autoplay = false) => {
     setSelectedId(item.id);
@@ -154,6 +109,13 @@ export function App() {
     const ids = await fetchSelectionIds(filters);
     setMontageSelection((current) => addToSelection(current, ids));
   };
+  const loadingMessage = videos.isLoading
+    ? 'Loading videos…'
+    : videos.isFetchingNextPage
+      ? 'Loading more…'
+      : videos.hasNextPage
+        ? 'Scroll to load more'
+        : 'All videos loaded';
 
   if (location.pathname === '/montages') {
     return (
@@ -181,229 +143,56 @@ export function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AppBar position="sticky" color="transparent" elevation={0}>
-        <Toolbar
-          sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper', gap: 1.5 }}
-        >
-          <Tooltip title="Show filters">
-            <IconButton
-              aria-label="Show filters"
-              onClick={() => setFiltersOpen(true)}
-              sx={{ display: { lg: 'none' } }}
-            >
-              <FilterListRounded />
-            </IconButton>
-          </Tooltip>
-          <VideoLibraryRounded color="primary" />
-          <Typography variant="h6" component="h1" sx={{ mr: 'auto', whiteSpace: 'nowrap' }}>
-            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
-              Video{' '}
-            </Box>
-            Catalog
-          </Typography>
-          <Button variant="outlined" size="small" onClick={() => void appendAll()}>
-            Select all
-          </Button>
-          <Button
-            variant="outlined"
-            size="small"
-            disabled={!montageSelection.length}
-            onClick={() => setMontageSelection([])}
-          >
-            Unselect all
-          </Button>
-          <Button
-            variant="contained"
-            size="small"
-            disabled={montageSelection.length < 2}
-            onClick={() => navigate('/montage')}
-          >
-            Montage{montageSelection.length ? ` (${montageSelection.length})` : ''}
-          </Button>
-          <Button variant="text" size="small" onClick={() => navigate('/montages')}>
-            Generated videos
-          </Button>
-          <Chip
-            label={`${total} videos`}
-            size="small"
-            variant="outlined"
-            sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
-          />
-          <FormControl size="small" sx={{ minWidth: { xs: 0, sm: 154 } }}>
-            <InputLabel id="sort-videos-label">Sort</InputLabel>
-            <Select
-              labelId="sort-videos-label"
-              aria-label="Sort videos"
-              label="Sort"
-              value={filters.sort ?? 'newest'}
-              onChange={(event) => setFilters({ ...filters, sort: event.target.value })}
-            >
-              <MenuItem value="newest">Newest first</MenuItem>
-              <MenuItem value="oldest">Oldest first</MenuItem>
-              <MenuItem value="title">Title A–Z</MenuItem>
-              <MenuItem value="title_desc">Title Z–A</MenuItem>
-              <MenuItem value="duration">Longest first</MenuItem>
-              <MenuItem value="rating_desc">Rating: highest first</MenuItem>
-              <MenuItem value="rating_asc">Rating: lowest first</MenuItem>
-              <MenuItem value="language">Language A–Z</MenuItem>
-            </Select>
-          </FormControl>
-          <Tooltip title={`Switch to ${colorMode === 'dark' ? 'light' : 'dark'} mode`}>
-            <Switch
-              aria-label="Toggle color mode"
-              checked={colorMode === 'dark'}
-              onChange={() => setColorMode((mode) => (mode === 'dark' ? 'light' : 'dark'))}
-              icon={<Brightness7Rounded fontSize="small" />}
-              checkedIcon={<Brightness4Rounded fontSize="small" />}
-            />
-          </Tooltip>
-          <Button
-            variant="contained"
-            startIcon={<FileUploadRounded />}
-            onClick={reimport}
-            disabled={importing}
-            sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
-          >
-            {importing ? 'Importing…' : 'Import / Reimport'}
-          </Button>
-        </Toolbar>
-      </AppBar>
-
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', lg: '264px minmax(0, 1fr)' },
-          '@media (min-width: 1280px)': {
-            gridTemplateColumns: selected ? '264px minmax(0, 1fr) 390px' : '264px minmax(0, 1fr)',
-          },
-          minHeight: 'calc(100vh - 64px)',
+      <CatalogToolbar
+        filters={filters}
+        setFilters={setFilters}
+        filtersOpen={() => setFiltersOpen(true)}
+        montageSelectionCount={montageSelection.length}
+        total={total}
+        colorMode={colorMode}
+        importing={importing}
+        onSelectAll={() => void appendAll()}
+        onUnselectAll={() => setMontageSelection([])}
+        onMontage={() => navigate('/montage')}
+        onExports={() => navigate('/montages')}
+        onToggleColorMode={() => setColorMode((mode) => (mode === 'dark' ? 'light' : 'dark'))}
+        onReimport={() => void reimport()}
+      />
+      <CatalogWorkspace
+        filters={filters}
+        setFilters={setFilters}
+        keywords={keywords.data ?? []}
+        keywordsLoading={keywords.isLoading}
+        keywordsError={keywords.isError}
+        filtersOpen={filtersOpen}
+        onCloseFilters={() => setFiltersOpen(false)}
+        importing={importing}
+        onReimport={() => void reimport()}
+        items={items}
+        selected={selected}
+        desktopInspector={desktopInspector}
+        montageSelection={montageSelection}
+        videosError={videos.error}
+        loadingMessage={loadingMessage}
+        hasNextPage={videos.hasNextPage}
+        fetchingNextPage={videos.isFetchingNextPage}
+        onLoadMore={() => void videos.fetchNextPage()}
+        lightboxItem={lightboxItem ?? null}
+        lightboxAutoplay={lightboxAutoplay}
+        onSelect={(item) => setSelectedId(item.id)}
+        onPlay={(item) => openLightbox(item, true)}
+        onToggleSelection={(id) => setMontageSelection((current) => toggleSelection(current, id))}
+        onSaveVideo={saveVideo}
+        onCloseInspector={() => setSelectedId(null)}
+        onCloseLightbox={() => {
+          setLightboxId(null);
+          setLightboxAutoplay(false);
         }}
-      >
-        <Paper
-          component="aside"
-          square
-          sx={{ display: { xs: 'none', lg: 'block' }, borderRight: 1, borderColor: 'divider' }}
-        >
-          <FiltersPanel
-            filters={filters}
-            setFilters={setFilters}
-            keywords={keywords.data ?? []}
-            keywordsLoading={keywords.isLoading}
-            keywordsError={keywords.isError}
-          />
-        </Paper>
-        <Drawer anchor="left" open={filtersOpen} onClose={() => setFiltersOpen(false)}>
-          <Box sx={{ width: 300 }}>
-            <FiltersPanel
-              filters={filters}
-              setFilters={setFilters}
-              keywords={keywords.data ?? []}
-              keywordsLoading={keywords.isLoading}
-              keywordsError={keywords.isError}
-              onClose={() => setFiltersOpen(false)}
-            />
-          </Box>
-        </Drawer>
-        <Box component="main" sx={{ minWidth: 0, px: { xs: 2, sm: 3 }, py: 3 }}>
-          <Stack
-            direction="row"
-            sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2.5 }}
-          >
-            <Box>
-              <Typography variant="subtitle1">Library</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Browse, review, and refine your clips.
-              </Typography>
-            </Box>
-            <Button
-              variant="contained"
-              startIcon={<FileUploadRounded />}
-              onClick={reimport}
-              disabled={importing}
-              sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
-            >
-              {importing ? 'Importing…' : 'Import'}
-            </Button>
-          </Stack>
-          {videos.isError && (
-            <Paper role="alert" sx={{ p: 2, color: 'error.main', mb: 2 }}>
-              {videos.error.message}
-            </Paper>
-          )}
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(172px, 1fr))',
-              gap: 2,
-            }}
-          >
-            {items.map((item) => (
-              <Card
-                key={item.id}
-                item={item}
-                selected={item.id === selected?.id}
-                onSelect={() => setSelectedId(item.id)}
-                onPlay={() => openLightbox(item, true)}
-                selectionIndex={montageSelection.indexOf(item.id)}
-                onToggleSelection={() =>
-                  setMontageSelection((current) => toggleSelection(current, item.id))
-                }
-              />
-            ))}
-          </Box>
-          <Typography
-            ref={sentinel}
-            align="center"
-            color="text.secondary"
-            variant="body2"
-            sx={{ py: 5 }}
-          >
-            {videos.isLoading
-              ? 'Loading videos…'
-              : videos.isFetchingNextPage
-                ? 'Loading more…'
-                : videos.hasNextPage
-                  ? 'Scroll to load more'
-                  : 'All videos loaded'}
-          </Typography>
-        </Box>
-        {selected && desktopInspector && (
-          <Inspector
-            key={selected.id}
-            item={selected}
-            onSaved={saveVideo}
-            onClose={() => setSelectedId(null)}
-          />
-        )}
-      </Box>
-      {selected && !desktopInspector && (
-        <Drawer anchor="right" open onClose={() => setSelectedId(null)}>
-          <Box sx={{ width: { xs: '100vw', sm: 440 }, maxWidth: '100vw', height: '100%' }}>
-            <Inspector
-              key={selected.id}
-              item={selected}
-              onSaved={saveVideo}
-              onClose={() => setSelectedId(null)}
-              drawer
-            />
-          </Box>
-        </Drawer>
-      )}
-      {lightboxItem && (
-        <Lightbox
-          items={items}
-          item={lightboxItem}
-          autoplay={lightboxAutoplay}
-          onClose={() => {
-            setLightboxId(null);
-            setLightboxAutoplay(false);
-          }}
-          onSelect={(item) => {
-            setSelectedId(item.id);
-            setLightboxId(item.id);
-          }}
-        />
-      )}
+        onSelectLightbox={(item) => {
+          setSelectedId(item.id);
+          setLightboxId(item.id);
+        }}
+      />
     </ThemeProvider>
   );
 }

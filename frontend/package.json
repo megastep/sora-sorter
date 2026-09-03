@@ -4,6 +4,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "render": "node render.mjs",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "doctor": "react-doctor",

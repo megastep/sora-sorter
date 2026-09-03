@@ -1,26 +1,126 @@
+import {
+  Box,
+  Card as MuiCard,
+  CardActionArea,
+  CardContent,
+  CardMedia,
+  Chip,
+  IconButton,
+  Stack,
+  Typography,
+} from '@mui/material';
+import PlayArrowRounded from '@mui/icons-material/PlayArrowRounded';
 import { API, type Video } from '../catalog';
 
 export function Card({
   item,
   selected,
-  onOpen,
+  onSelect,
+  onPlay,
 }: {
   item: Video;
   selected: boolean;
-  onOpen: () => void;
+  onSelect: () => void;
+  onPlay: () => void;
 }) {
   return (
-    <button
-      className={`card ${item.orientation === 'landscape' ? 'landscape' : ''} ${selected ? 'selected' : ''}`}
-      aria-label={`Open ${item.title} in lightbox`}
-      onClick={onOpen}
+    <MuiCard
+      variant="outlined"
+      sx={{
+        display: 'flex',
+        height: '100%',
+        flexDirection: 'column',
+        position: 'relative',
+        overflow: 'hidden',
+        borderColor: selected ? 'primary.main' : 'divider',
+        boxShadow: selected ? 3 : 0,
+      }}
     >
-      <img src={`${API}/videos/${item.id}/poster`} alt={item.title} loading="lazy" />
-      <span className="duration">{Math.round(item.duration_seconds || 0)}s</span>
-      <strong>{item.title}</strong>
-      <small>
-        {item.language || 'unknown'} · {item.review_status}
-      </small>
-    </button>
+      <Box
+        sx={{
+          position: 'relative',
+          display: 'grid',
+          aspectRatio: '9 / 13',
+          placeItems: 'center',
+          overflow: 'hidden',
+          bgcolor: 'common.black',
+        }}
+      >
+        <CardActionArea
+          aria-label={`Select ${item.title} for editing`}
+          onClick={onSelect}
+          sx={{ width: '100%', height: '100%' }}
+        >
+          <CardMedia
+            component="img"
+            image={`${API}/videos/${item.id}/poster`}
+            alt={item.title}
+            loading="lazy"
+            sx={{
+              width: '100%',
+              height: '100%',
+              objectFit: item.orientation === 'landscape' ? 'contain' : 'cover',
+            }}
+          />
+        </CardActionArea>
+        <IconButton
+          aria-label={`Play ${item.title}`}
+          onClick={onPlay}
+          size="small"
+          sx={{
+            position: 'absolute',
+            right: 10,
+            bottom: 10,
+            color: 'common.white',
+            bgcolor: 'rgba(0, 0, 0, 0.64)',
+            '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.8)' },
+          }}
+        >
+          <PlayArrowRounded fontSize="small" />
+        </IconButton>
+      </Box>
+      <CardActionArea
+        aria-label={`Select ${item.title} for editing`}
+        onClick={onSelect}
+        sx={{
+          display: 'flex',
+          flexGrow: 1,
+          alignItems: 'stretch',
+        }}
+      >
+        <CardContent
+          sx={{
+            display: 'flex',
+            flexGrow: 1,
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+            p: 1.5,
+            '&:last-child': { pb: 1.5 },
+          }}
+        >
+          <Stack
+            direction="row"
+            sx={{ justifyContent: 'space-between', alignItems: 'start', gap: 1 }}
+          >
+            <Typography variant="subtitle2" noWrap sx={{ fontWeight: 800 }}>
+              {item.title}
+            </Typography>
+            <Chip
+              label={`${Math.round(item.duration_seconds || 0)}s`}
+              size="small"
+              variant="outlined"
+            />
+          </Stack>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            noWrap
+            sx={{ display: 'block', mt: 0.5 }}
+          >
+            {item.language || 'unknown'} · {item.review_status}
+          </Typography>
+        </CardContent>
+      </CardActionArea>
+    </MuiCard>
   );
 }

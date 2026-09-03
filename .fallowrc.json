@@ -1,0 +1,3 @@
+{
+  "ignoreDependencies": ["@emotion/react", "@emotion/styled"]
+}

@@ -1,3 +1,5 @@
+import { AddRounded, DeleteOutlineRounded } from '@mui/icons-material';
+import { Button, IconButton, MenuItem, Paper, Stack, TextField } from '@mui/material';
 import { newReference, type ReferenceDraft } from '../catalog';
 
 export function ReferenceEditor({
@@ -14,45 +16,51 @@ export function ReferenceEditor({
       ),
     );
   return (
-    <div className="references">
+    <Stack spacing={1.25}>
       {references.map((reference, index) => (
-        <fieldset className="reference" key={reference.editorId}>
-          <input
-            aria-label="Reference name"
-            placeholder="Name or character"
-            value={reference.name}
-            onChange={(event) => update(index, 'name', event.target.value)}
-          />
-          <select
-            aria-label="Reference confidence"
-            value={reference.confidence}
-            onChange={(event) => update(index, 'confidence', event.target.value)}
-          >
-            <option value="possible">Possible</option>
-            <option value="likely">Likely</option>
-          </select>
-          <textarea
-            aria-label="Reference evidence"
-            placeholder="Why this reference applies"
-            value={reference.basis}
-            onChange={(event) => update(index, 'basis', event.target.value)}
-          />
-          <button
-            type="button"
-            className="remove-reference"
-            onClick={() => onChange(references.filter((_, current) => current !== index))}
-          >
-            Remove
-          </button>
-        </fieldset>
+        <Paper variant="outlined" key={reference.editorId} sx={{ p: 1.25 }}>
+          <Stack spacing={1}>
+            <Stack direction="row" spacing={1}>
+              <TextField
+                label="Name or character"
+                value={reference.name}
+                onChange={(event) => update(index, 'name', event.target.value)}
+                size="small"
+                fullWidth
+              />
+              <TextField
+                select
+                label="Confidence"
+                value={reference.confidence}
+                onChange={(event) => update(index, 'confidence', event.target.value)}
+                size="small"
+                sx={{ minWidth: 112 }}
+              >
+                <MenuItem value="possible">Possible</MenuItem>
+                <MenuItem value="likely">Likely</MenuItem>
+              </TextField>
+              <IconButton
+                aria-label="Remove reference"
+                color="error"
+                onClick={() => onChange(references.filter((_, current) => current !== index))}
+              >
+                <DeleteOutlineRounded />
+              </IconButton>
+            </Stack>
+            <TextField
+              label="Evidence"
+              value={reference.basis}
+              onChange={(event) => update(index, 'basis', event.target.value)}
+              multiline
+              minRows={2}
+              fullWidth
+            />
+          </Stack>
+        </Paper>
       ))}
-      <button
-        type="button"
-        className="add-reference"
-        onClick={() => onChange([...references, newReference()])}
-      >
+      <Button startIcon={<AddRounded />} onClick={() => onChange([...references, newReference()])}>
         Add reference
-      </button>
-    </div>
+      </Button>
+    </Stack>
   );
 }

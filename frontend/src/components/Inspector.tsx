@@ -1,3 +1,23 @@
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Alert,
+  Box,
+  Button,
+  Checkbox,
+  Divider,
+  FormControl,
+  FormControlLabel,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
+import { ExpandMoreRounded, SaveRounded } from '@mui/icons-material';
 import { useState } from 'react';
 import { API, toDraft, type Draft, type ReviewStatus, type Video } from '../catalog';
 import { ReferenceEditor } from './ReferenceEditor';
@@ -7,12 +27,14 @@ export function Inspector({ item, onSaved }: { item: Video; onSaved: (value: Vid
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     setSaved(false);
     setDraft((current) => ({ ...current, [key]: value }));
   };
-  const lines = (key: 'keywords' | 'visible_text' | 'content_flags') => (
-    <textarea
+  const lines = (key: 'keywords' | 'visible_text' | 'content_flags', label: string) => (
+    <TextField
+      label={label}
       value={draft[key].join('\n')}
       onChange={(event) =>
         set(
@@ -20,6 +42,9 @@ export function Inspector({ item, onSaved }: { item: Video; onSaved: (value: Vid
           event.target.value.split('\n').map((value) => value.trim()),
         )
       }
+      multiline
+      minRows={3}
+      fullWidth
     />
   );
   const save = async () => {
@@ -35,10 +60,10 @@ export function Inspector({ item, onSaved }: { item: Video; onSaved: (value: Vid
           keywords: draft.keywords.filter(Boolean),
           visible_text: draft.visible_text.filter(Boolean),
           content_flags: draft.content_flags.filter(Boolean),
-          likeness_references: draft.likeness_references.map((reference) => ({
-            name: reference.name,
-            confidence: reference.confidence,
-            basis: reference.basis,
+          likeness_references: draft.likeness_references.map(({ name, confidence, basis }) => ({
+            name,
+            confidence,
+            basis,
           })),
         }),
       });
@@ -51,101 +76,166 @@ export function Inspector({ item, onSaved }: { item: Video; onSaved: (value: Vid
       setSaving(false);
     }
   };
+
   return (
-    <section className="inspector">
-      <video
-        controls
-        src={`${API}/videos/${draft.id}/media`}
-        poster={`${API}/videos/${draft.id}/poster`}
-      />
-      <label>
-        Title
-        <input value={draft.title} onChange={(event) => set('title', event.target.value)} />
-      </label>
-      <label>Keywords{lines('keywords')}</label>
-      <label>
-        Language
-        <input
+    <Paper
+      component="aside"
+      square
+      sx={{
+        gridColumn: { xs: 'auto', lg: '1 / -1' },
+        borderTop: { xs: 1, lg: 1 },
+        borderLeft: 0,
+        borderColor: 'divider',
+        p: 2.25,
+        minWidth: 0,
+        alignSelf: 'start',
+        '@media (min-width: 1280px)': {
+          gridColumn: 'auto',
+          borderTop: 0,
+          borderLeft: 1,
+          position: 'sticky',
+          top: 64,
+          maxHeight: 'calc(100vh - 64px)',
+          overflowY: 'auto',
+        },
+      }}
+    >
+      <Stack spacing={2}>
+        <Box>
+          <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+            Inspector
+          </Typography>
+          <Typography variant="body2" color="text.secondary" noWrap>
+            {draft.id.slice(0, 12)}…
+          </Typography>
+        </Box>
+        <Box
+          component="video"
+          controls
+          src={`${API}/videos/${draft.id}/media`}
+          poster={`${API}/videos/${draft.id}/poster`}
+          sx={{ width: '100%', maxHeight: 300, bgcolor: 'common.black', borderRadius: 2 }}
+        />
+        <TextField
+          label="Title"
+          value={draft.title}
+          onChange={(event) => set('title', event.target.value)}
+          fullWidth
+        />
+        {lines('keywords', 'Keywords (one per line)')}
+        <TextField
+          label="Language"
           value={draft.language ?? ''}
           onChange={(event) => set('language', event.target.value)}
+          fullWidth
         />
-      </label>
-      <label>
-        Summary
-        <textarea value={draft.summary} onChange={(event) => set('summary', event.target.value)} />
-      </label>
-      <details>
-        <summary>Transcript</summary>
-        <textarea
-          aria-label="Transcript"
-          value={draft.transcript}
-          onChange={(event) => set('transcript', event.target.value)}
+        <TextField
+          label="Summary"
+          value={draft.summary}
+          onChange={(event) => set('summary', event.target.value)}
+          multiline
+          minRows={3}
+          fullWidth
         />
-      </details>
-      <details>
-        <summary>Visible text</summary>
-        {lines('visible_text')}
-      </details>
-      <details>
-        <summary>Content flags</summary>
-        {lines('content_flags')}
-      </details>
-      <details>
-        <summary>Likeness / reference evidence</summary>
-        <ReferenceEditor
-          references={draft.likeness_references}
-          onChange={(value) => set('likeness_references', value)}
+        <Accordion disableGutters>
+          <AccordionSummary expandIcon={<ExpandMoreRounded />}>Transcript</AccordionSummary>
+          <AccordionDetails>
+            <TextField
+              aria-label="Transcript"
+              value={draft.transcript}
+              onChange={(event) => set('transcript', event.target.value)}
+              multiline
+              minRows={5}
+              fullWidth
+            />
+          </AccordionDetails>
+        </Accordion>
+        <Accordion disableGutters>
+          <AccordionSummary expandIcon={<ExpandMoreRounded />}>Visible text</AccordionSummary>
+          <AccordionDetails>{lines('visible_text', 'Visible text')}</AccordionDetails>
+        </Accordion>
+        <Accordion disableGutters>
+          <AccordionSummary expandIcon={<ExpandMoreRounded />}>Content flags</AccordionSummary>
+          <AccordionDetails>{lines('content_flags', 'Content flags')}</AccordionDetails>
+        </Accordion>
+        <Accordion disableGutters>
+          <AccordionSummary expandIcon={<ExpandMoreRounded />}>
+            Likeness / reference evidence
+          </AccordionSummary>
+          <AccordionDetails>
+            <ReferenceEditor
+              references={draft.likeness_references}
+              onChange={(value) => set('likeness_references', value)}
+            />
+          </AccordionDetails>
+        </Accordion>
+        <FormControl fullWidth>
+          <InputLabel id="review-status-label">Review status</InputLabel>
+          <Select
+            labelId="review-status-label"
+            label="Review status"
+            value={draft.review_status}
+            onChange={(event) => set('review_status', event.target.value as ReviewStatus)}
+          >
+            {(['unreviewed', 'shortlisted', 'approved', 'rejected'] as const).map((value) => (
+              <MenuItem key={value} value={value}>
+                {value}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl fullWidth>
+          <InputLabel id="rating-label">Rating</InputLabel>
+          <Select
+            labelId="rating-label"
+            label="Rating"
+            value={draft.rating ?? ''}
+            onChange={(event) =>
+              set('rating', event.target.value ? Number(event.target.value) : null)
+            }
+          >
+            <MenuItem value="">None</MenuItem>
+            {[1, 2, 3, 4, 5].map((value) => (
+              <MenuItem key={value} value={value}>
+                {value}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <Stack direction="row" spacing={1}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={draft.favorite}
+                onChange={(event) => set('favorite', event.target.checked)}
+              />
+            }
+            label="Favorite"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={draft.publishable}
+                onChange={(event) => set('publishable', event.target.checked)}
+              />
+            }
+            label="Publishable"
+          />
+        </Stack>
+        <TextField
+          label="Notes"
+          value={draft.notes}
+          onChange={(event) => set('notes', event.target.value)}
+          multiline
+          minRows={3}
+          fullWidth
         />
-      </details>
-      <label>
-        Review status
-        <select
-          value={draft.review_status}
-          onChange={(event) => set('review_status', event.target.value as ReviewStatus)}
-        >
-          {(['unreviewed', 'shortlisted', 'approved', 'rejected'] as const).map((value) => (
-            <option key={value}>{value}</option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Rating
-        <select
-          value={draft.rating ?? ''}
-          onChange={(event) =>
-            set('rating', event.target.value ? Number(event.target.value) : null)
-          }
-        >
-          <option value="">None</option>
-          {[1, 2, 3, 4, 5].map((value) => (
-            <option key={value}>{value}</option>
-          ))}
-        </select>
-      </label>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={draft.favorite}
-          onChange={(event) => set('favorite', event.target.checked)}
-        />{' '}
-        Favorite
-      </label>
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={draft.publishable}
-          onChange={(event) => set('publishable', event.target.checked)}
-        />{' '}
-        Publishable
-      </label>
-      <label>
-        Notes
-        <textarea value={draft.notes} onChange={(event) => set('notes', event.target.value)} />
-      </label>
-      {error && <p role="alert">{error}</p>}
-      <button className="save" onClick={save} disabled={saving}>
-        {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save changes'}
-      </button>
-    </section>
+        {error && <Alert severity="error">{error}</Alert>}
+        <Divider />
+        <Button variant="contained" startIcon={<SaveRounded />} onClick={save} disabled={saving}>
+          {saving ? 'Saving…' : saved ? 'Saved' : 'Save changes'}
+        </Button>
+      </Stack>
+    </Paper>
   );
 }

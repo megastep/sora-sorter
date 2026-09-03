@@ -236,7 +236,8 @@ def resolve_preset(args: argparse.Namespace) -> dict[str, Any]:
         preset_id = int(args.preset)
     except ValueError:
         preset_id = None
-    matches = [
+    exact_matches = [preset for preset in presets if preset["name"] == args.preset]
+    matches = exact_matches or [
         preset
         for preset in presets
         if (preset_id is not None and preset["id"] == preset_id)
@@ -270,7 +271,7 @@ def wait_for_job(args: argparse.Namespace, job_id: str) -> dict[str, Any]:
             return job
         if time.monotonic() >= deadline:
             raise ValueError(f"Timed out waiting for montage job {job_id}")
-        time.sleep(args.poll_interval)
+        time.sleep(min(args.poll_interval, max(0, deadline - time.monotonic())))
 
 
 def download_montage(args: argparse.Namespace, job_id: str) -> Path:

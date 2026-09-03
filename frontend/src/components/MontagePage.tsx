@@ -181,7 +181,23 @@ export function MontagePage({
   const previewFrames = montageDurationInFrames(previewSpec);
   useEffect(() => {
     if (!job || !['queued', 'rendering'].includes(job.status)) return;
-    const timer = window.setInterval(() => void fetchRenderJob(job.id).then(setJob), 900);
+    const timer = window.setInterval(
+      () =>
+        void fetchRenderJob(job.id)
+          .then(setJob)
+          .catch((error: unknown) => {
+            setJob((current) =>
+              current
+                ? {
+                    ...current,
+                    status: 'failed',
+                    error: error instanceof Error ? error.message : 'Export status is unavailable.',
+                  }
+                : current,
+            );
+          }),
+      900,
+    );
     return () => window.clearInterval(timer);
   }, [job]);
   // fallow-ignore-next-line complexity -- capability handling and render errors must share the same user-visible export state.
@@ -302,7 +318,14 @@ export function MontagePage({
           }}
           onSelectPreset={(preset) => {
             applyPreset(preset);
-            void markMontagePresetUsed(preset.id).then(refreshPresets);
+            void markMontagePresetUsed(preset.id)
+              .then(refreshPresets)
+              .catch((error: unknown) => {
+                setPresetError(
+                  error instanceof Error ? error.message : 'Could not save preset recency.',
+                );
+                void refreshPresets();
+              });
           }}
           onClearPreset={() => {
             setActivePresetId(null);

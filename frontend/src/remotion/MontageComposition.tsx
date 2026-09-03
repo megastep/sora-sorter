@@ -28,6 +28,9 @@ function FittedVideo({
   showForeground = true,
   backdropBlur = 28,
   foregroundOpacity = 1,
+  audioFadeInFrames = 0,
+  audioFadeOutFrames = 0,
+  durationInFrames,
 }: {
   src: string;
   muted?: boolean;
@@ -35,7 +38,20 @@ function FittedVideo({
   showForeground?: boolean;
   backdropBlur?: number;
   foregroundOpacity?: number;
+  audioFadeInFrames?: number;
+  audioFadeOutFrames?: number;
+  durationInFrames?: number;
 }) {
+  const frame = useCurrentFrame();
+  const fadeIn = audioFadeInFrames
+    ? interpolate(frame, [0, audioFadeInFrames], [0, 1], { extrapolateRight: 'clamp' })
+    : 1;
+  const fadeOut =
+    audioFadeOutFrames && durationInFrames
+      ? interpolate(frame, [durationInFrames - audioFadeOutFrames, durationInFrames], [1, 0], {
+          extrapolateLeft: 'clamp',
+        })
+      : 1;
   return (
     <AbsoluteFill style={{ background: '#000', overflow: 'hidden' }}>
       {showBackdrop && (
@@ -57,6 +73,7 @@ function FittedVideo({
         <Video
           src={src}
           muted={muted}
+          volume={fadeIn * fadeOut}
           style={{
             position: 'absolute',
             inset: 0,
@@ -194,11 +211,19 @@ export function MontageComposition({ spec }: { spec: MontageSpec }) {
     <AbsoluteFill style={{ width, height, background: '#000' }}>
       <Sequence from={spec.title ? pageDurationFrames - pageTransitionFrames : 0}>
         <TransitionSeries>
+          {/* fallow-ignore-next-line complexity -- clip rendering keeps transition and complementary audio timing in one sequence. */}
           {spec.clips.map((clip, index) => (
             <Fragment key={clip.id}>
               <TransitionSeries.Sequence durationInFrames={frames(clip.duration_seconds)}>
                 <FittedVideo
                   src={clip.media_url}
+                  durationInFrames={frames(clip.duration_seconds)}
+                  audioFadeInFrames={spec.transition !== 'cut' && index > 0 ? transitionFrames : 0}
+                  audioFadeOutFrames={
+                    spec.transition !== 'cut' && index < spec.clips.length - 1
+                      ? transitionFrames
+                      : 0
+                  }
                   showBackdrop={
                     spec.fillMismatchedOrientation &&
                     (clip.width && clip.height

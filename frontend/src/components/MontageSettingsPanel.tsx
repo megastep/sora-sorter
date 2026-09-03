@@ -27,6 +27,8 @@ type Props = {
   activePresetId: number | null;
   presetName: string;
   job: RenderJob | null;
+  exportError: string | null;
+  presetError: string | null;
   onChange: (patch: Partial<MontageSettings>) => void;
   onPresetNameChange: (name: string) => void;
   onSelectPreset: (preset: MontagePreset) => void;
@@ -36,8 +38,9 @@ type Props = {
   onSoftwareFallback: () => void;
 };
 
+// fallow-ignore-next-line complexity -- settings controls share one preview-backed editor state and validation surface.
 export function MontageSettingsPanel(props: Props) {
-  const { settings, presets, activePresetId, presetName, job } = props;
+  const { settings, presets, activePresetId, presetName, job, exportError, presetError } = props;
   const changeEndPage = (patch: Partial<MontageSettings['endPage']>) =>
     props.onChange({ endPage: { ...settings.endPage, ...patch } });
 
@@ -78,6 +81,8 @@ export function MontageSettingsPanel(props: Props) {
                 label="Preset name"
                 value={presetName}
                 onChange={(event) => props.onPresetNameChange(event.target.value)}
+                error={Boolean(presetError)}
+                helperText={presetError}
               />
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
                 <Button
@@ -219,6 +224,7 @@ export function MontageSettingsPanel(props: Props) {
             </Box>
           </>
         )}
+        {exportError && <Typography color="error.main">{exportError}</Typography>}
         {job && (
           <Box role="status">
             {job.status === 'completed' ? (

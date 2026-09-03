@@ -337,7 +337,7 @@ def _render_job(job_id: str, request_path: Path) -> None:
             if job:
                 Path(str(job["output"])).unlink(missing_ok=True)
         else:
-            job = update_job(job_id, status="completed", progress=1, stage="completed")
+            job = read_job(job_id)
             if not job:
                 return
             connection = db()
@@ -349,6 +349,16 @@ def _render_job(job_id: str, request_path: Path) -> None:
                     Path(str(job["output"])).name,
                     float(job["duration_seconds"]),
                 )
+            except Exception as error:
+                Path(str(job["output"])).unlink(missing_ok=True)
+                update_job(
+                    job_id,
+                    status="failed",
+                    error_code="export_persistence_failed",
+                    error=f"Rendered video could not be recorded: {error}",
+                )
+            else:
+                update_job(job_id, status="completed", progress=1, stage="completed")
             finally:
                 connection.close()
     finally:

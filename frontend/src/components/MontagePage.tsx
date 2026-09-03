@@ -86,6 +86,8 @@ export function MontagePage({
   const [activePresetId, setActivePresetId] = useState<number | null>(null);
   const [job, setJob] = useState<RenderJob | null>(null);
   const [accelerationReason, setAccelerationReason] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [presetError, setPresetError] = useState<string | null>(null);
   const [clipsReady, setClipsReady] = useState(false);
   const [presetsReady, setPresetsReady] = useState(false);
   const hasInitializedEditor = useRef(false);
@@ -140,9 +142,14 @@ export function MontagePage({
   }, [clips, clipsReady, presets, presetsReady]);
   const refreshPresets = async () => setPresets(await fetchMontagePresets());
   const savePreset = async (presetId?: number) => {
-    const saved = await saveMontagePreset(presetName, settings, presetId);
-    setActivePresetId(saved.id);
-    await refreshPresets();
+    try {
+      const saved = await saveMontagePreset(presetName, settings, presetId);
+      setActivePresetId(saved.id);
+      setPresetError(null);
+      await refreshPresets();
+    } catch (error) {
+      setPresetError(error instanceof Error ? error.message : 'Could not save preset.');
+    }
   };
   const dimensions = dimensionsFor(settings.format);
   const totalFrames = montageDurationInFrames(spec);
@@ -151,17 +158,23 @@ export function MontagePage({
     const timer = window.setInterval(() => void fetchRenderJob(job.id).then(setJob), 900);
     return () => window.clearInterval(timer);
   }, [job]);
+  // fallow-ignore-next-line complexity -- capability handling and render errors must share the same user-visible export state.
   const startExport = async (softwareFallback = false) => {
-    if (!softwareFallback) {
-      const capability = await fetchMontageCapabilities();
-      if (!capability.accelerated) {
-        setAccelerationReason(
-          capability.reason ?? 'Required hardware acceleration is unavailable.',
-        );
-        return;
+    try {
+      setExportError(null);
+      if (!softwareFallback) {
+        const capability = await fetchMontageCapabilities();
+        if (!capability.accelerated) {
+          setAccelerationReason(
+            capability.reason ?? 'Required hardware acceleration is unavailable.',
+          );
+          return;
+        }
       }
+      setJob(await renderMontage(spec, softwareFallback));
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'Could not start the export.');
     }
-    setJob(await renderMontage(spec, softwareFallback));
   };
   if (clips.length < 2)
     return (
@@ -249,8 +262,13 @@ export function MontagePage({
           activePresetId={activePresetId}
           presetName={presetName}
           job={job}
+          exportError={exportError}
+          presetError={presetError}
           onChange={dispatchEditor}
-          onPresetNameChange={setPresetName}
+          onPresetNameChange={(name) => {
+            setPresetName(name);
+            setPresetError(null);
+          }}
           onSelectPreset={(preset) => {
             applyPreset(preset);
             void markMontagePresetUsed(preset.id).then(refreshPresets);

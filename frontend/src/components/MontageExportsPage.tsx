@@ -39,44 +39,49 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
         ) : (
           exports.map((entry) => (
             <Paper key={entry.id} sx={{ p: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Box sx={{ minWidth: 0, mr: 'auto' }}>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                sx={{ alignItems: { sm: 'center' }, gap: 2 }}
+              >
+                <Box sx={{ minWidth: 0, mr: { sm: 'auto' } }}>
                   <Typography noWrap>{entry.title || 'Untitled montage'}</Typography>
                   <Typography variant="body2" color="text.secondary">
                     {formatDuration(entry.duration_seconds)} · Generated{' '}
                     {new Date(`${entry.generated_at.replace(' ', 'T')}Z`).toLocaleString()}
                   </Typography>
                 </Box>
-                <Button
-                  variant="outlined"
-                  startIcon={<PlayArrowRounded />}
-                  onClick={() =>
-                    setPlayingId((current) => (current === entry.id ? null : entry.id))
-                  }
-                >
-                  {playingId === entry.id ? 'Hide player' : 'Play'}
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<DownloadRounded />}
-                  component="a"
-                  href={`/api/montage-exports/${entry.id}/download`}
-                >
-                  Download
-                </Button>
-                <Button
-                  color="error"
-                  startIcon={<DeleteRounded />}
-                  onClick={() =>
-                    void deleteMontageExport(entry.id).then(() => {
-                      setExports((items) => items.filter((item) => item.id !== entry.id));
-                      setPlayingId((current) => (current === entry.id ? null : current));
-                    })
-                  }
-                >
-                  Delete
-                </Button>
-              </Box>
+                <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<PlayArrowRounded />}
+                    onClick={() =>
+                      setPlayingId((current) => (current === entry.id ? null : entry.id))
+                    }
+                  >
+                    {playingId === entry.id ? 'Hide player' : 'Play'}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<DownloadRounded />}
+                    component="a"
+                    href={`/api/montage-exports/${entry.id}/download`}
+                  >
+                    Download
+                  </Button>
+                  <Button
+                    color="error"
+                    startIcon={<DeleteRounded />}
+                    onClick={() =>
+                      void deleteMontageExport(entry.id).then(() => {
+                        setExports((items) => items.filter((item) => item.id !== entry.id));
+                        setPlayingId((current) => (current === entry.id ? null : current));
+                      })
+                    }
+                  >
+                    Delete
+                  </Button>
+                </Stack>
+              </Stack>
               {playingId === entry.id && (
                 <Box
                   component="video"

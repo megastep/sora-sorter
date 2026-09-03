@@ -334,7 +334,11 @@ def generate_montage(args: argparse.Namespace) -> dict[str, Any]:
         "/api/montages",
         {"spec": spec, "software_fallback": args.software_fallback},
     )
-    api_request(args.server, "POST", f"/api/montage-presets/{preset['id']}/use")
+    preset_warning = None
+    try:
+        api_request(args.server, "POST", f"/api/montage-presets/{preset['id']}/use")
+    except ValueError as error:
+        preset_warning = f"Montage job {job['id']} was accepted, but preset recency was not updated: {error}"
     if not args.no_wait:
         job = wait_for_job(args, job["id"])
         if job["status"] == "failed":
@@ -349,6 +353,7 @@ def generate_montage(args: argparse.Namespace) -> dict[str, Any]:
         "video_ids": args.video_ids,
         "job": job,
         "download_url": api_url(args.server, f"/api/montages/{job['id']}/download"),
+        **({"preset_warning": preset_warning} if preset_warning else {}),
         **({"output": str(output)} if output else {}),
     }
 

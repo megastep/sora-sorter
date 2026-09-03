@@ -266,7 +266,10 @@ def require_acceleration(args: argparse.Namespace) -> None:
 def wait_for_job(args: argparse.Namespace, job_id: str) -> dict[str, Any]:
     deadline = time.monotonic() + args.timeout
     while True:
-        job = api_request(args.server, "GET", f"/api/montages/{job_id}")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise ValueError(f"Timed out waiting for montage job {job_id}")
+        job = api_request(args.server, "GET", f"/api/montages/{job_id}", timeout=remaining)
         if job["status"] in {"completed", "failed"}:
             return job
         if time.monotonic() >= deadline:
@@ -278,7 +281,10 @@ def download_montage(args: argparse.Namespace, job_id: str) -> Path:
     output = args.output.expanduser().resolve()
     if output.exists() and not args.force:
         raise ValueError(f"Output already exists (use --force to replace it): {output}")
-    output.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        output.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise ValueError(f"Could not prepare output directory for {output}: {error}") from None
     request = Request(api_url(args.server, f"/api/montages/{job_id}/download"))
     with tempfile.NamedTemporaryFile(
         dir=output.parent, prefix=f".{output.name}.", suffix=".part", delete=False

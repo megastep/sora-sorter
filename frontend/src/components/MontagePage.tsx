@@ -333,11 +333,15 @@ export function MontagePage({
           }}
           onSavePreset={(presetId) => void savePreset(presetId)}
           onDeletePreset={() =>
-            void deleteMontagePreset(activePresetId!).then(() => {
-              setActivePresetId(null);
-              setPresetName('');
-              void refreshPresets();
-            })
+            void deleteMontagePreset(activePresetId!)
+              .then(() => {
+                setActivePresetId(null);
+                setPresetName('');
+                void refreshPresets();
+              })
+              .catch((error: unknown) =>
+                setPresetError(error instanceof Error ? error.message : 'Could not delete preset.'),
+              )
           }
           onSoftwareFallback={() => void startExport(true)}
         />

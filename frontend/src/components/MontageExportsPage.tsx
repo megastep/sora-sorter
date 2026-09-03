@@ -81,10 +81,16 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
                     color="error"
                     startIcon={<DeleteRounded />}
                     onClick={() =>
-                      void deleteMontageExport(entry.id).then(() => {
-                        setExports((items) => items.filter((item) => item.id !== entry.id));
-                        setPlayingId((current) => (current === entry.id ? null : current));
-                      })
+                      void deleteMontageExport(entry.id)
+                        .then(() => {
+                          setExports((items) => items.filter((item) => item.id !== entry.id));
+                          setPlayingId((current) => (current === entry.id ? null : current));
+                        })
+                        .catch((reason: unknown) =>
+                          setError(
+                            reason instanceof Error ? reason.message : 'Could not delete montage.',
+                          ),
+                        )
                     }
                   >
                     Delete

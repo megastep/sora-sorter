@@ -354,6 +354,7 @@ export function MontagePage({
           activePresetId={activePresetId}
           presetName={presetName}
           job={job}
+          exportStarting={exportStarting}
           exportError={exportError ?? presetsError}
           presetError={presetError}
           onChange={dispatchEditor}
@@ -400,6 +401,7 @@ export function MontagePage({
           <Button onClick={() => setAccelerationReason(null)}>Cancel</Button>
           <Button
             variant="contained"
+            disabled={exportStarting}
             onClick={() => {
               setAccelerationReason(null);
               void startExport(true);

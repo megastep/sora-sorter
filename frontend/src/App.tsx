@@ -14,6 +14,7 @@ const initialColorMode = (): ColorMode => {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 };
 
+// fallow-ignore-next-line complexity -- route visibility intentionally preserves catalog and active montage state across navigation.
 export function App() {
   const [colorMode, setColorMode] = useState<ColorMode>(initialColorMode);
   const [montageSelection, setMontageSelection] = useState<string[]>(() => {
@@ -28,6 +29,7 @@ export function App() {
   });
   const navigate = useNavigate();
   const location = useLocation();
+  const [montageMounted, setMontageMounted] = useState(location.pathname === '/montage');
   const theme = useMemo(() => createCatalogTheme(colorMode), [colorMode]);
 
   useEffect(() => {
@@ -45,19 +47,24 @@ export function App() {
           montageSelection={montageSelection}
           setMontageSelection={setMontageSelection}
           colorMode={colorMode}
-          onMontage={() => navigate('/montage')}
+          onMontage={() => {
+            setMontageMounted(true);
+            navigate('/montage');
+          }}
           onExports={() => navigate('/montages', { state: { backTo: '/' } })}
           onToggleColorMode={() => setColorMode((mode) => (mode === 'dark' ? 'light' : 'dark'))}
           active={location.pathname === '/'}
         />
       </Box>
-      {location.pathname === '/montage' && (
-        <MontagePage
-          ids={montageSelection}
-          onBack={() => navigate('/')}
-          onReorder={setMontageSelection}
-          onExports={() => navigate('/montages')}
-        />
+      {montageMounted && (
+        <Box sx={{ display: location.pathname === '/montage' ? 'block' : 'none' }}>
+          <MontagePage
+            ids={montageSelection}
+            onBack={() => navigate('/')}
+            onReorder={setMontageSelection}
+            onExports={() => navigate('/montages')}
+          />
+        </Box>
       )}
       {location.pathname === '/montages' && (
         <MontageExportsPage onBack={() => navigate(location.state?.backTo ?? '/montage')} />

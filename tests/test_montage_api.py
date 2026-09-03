@@ -1,4 +1,5 @@
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -41,6 +42,7 @@ class MontageApiTests(unittest.TestCase):
         initialize(database)
         import_directory(database, records)
         catalog_app.jobs.clear()
+        catalog_app.capability_probe = None
 
     def tearDown(self) -> None:
         self.workspace.cleanup()
@@ -96,6 +98,48 @@ class MontageApiTests(unittest.TestCase):
         status = catalog_app.montage_status(job_id)
         self.assertEqual(status["status"], "failed")
         self.assertEqual(status["error_code"], "render_failed")
+
+    def test_renderer_timeout_marks_the_job_failed_and_terminates_it(self) -> None:
+        class HangingProcess:
+            stdout = iter(())
+
+            def __init__(self) -> None:
+                self.terminated = False
+
+            def terminate(self) -> None:
+                self.terminated = True
+
+            def wait(self, timeout: float | None = None) -> int:
+                return 0
+
+        job_id = "job"
+        request_path = self.root / "request.json"
+        request_path.write_text("{}", encoding="utf-8")
+        output = self.root / "result.mp4"
+        output.touch()
+        catalog_app.jobs[job_id] = {"id": job_id, "status": "queued", "output": str(output)}
+        process = HangingProcess()
+
+        with patch("app.RENDER_TIMEOUT_SECONDS", 0), patch(
+            "app.subprocess.Popen", return_value=process
+        ):
+            catalog_app._render_job(job_id, request_path)
+
+        status = catalog_app.montage_status(job_id)
+        self.assertEqual(status["status"], "failed")
+        self.assertEqual(status["error_code"], "render_timeout")
+        self.assertTrue(process.terminated)
+        self.assertFalse(output.exists())
+
+    def test_transient_capability_probe_failure_is_not_cached(self) -> None:
+        with patch(
+            "app.subprocess.run",
+            side_effect=subprocess.TimeoutExpired("node", 120),
+        ):
+            capability = catalog_app.montage_capabilities()
+
+        self.assertFalse(capability["accelerated"])
+        self.assertIsNone(catalog_app.capability_probe)
 
     def test_job_response_uses_a_fixed_public_field_set(self) -> None:
         response = catalog_app.job_response(

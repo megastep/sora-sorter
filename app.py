@@ -13,9 +13,11 @@ import os
 import re
 import subprocess
 import threading
+import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from queue import Empty, Queue
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request
@@ -178,6 +180,7 @@ job_lock = threading.Lock()
 capability_probe: dict[str, object] | None = None
 capability_probe_lock = threading.Lock()
 MONTAGE_PAGE_DURATION_SECONDS = 3
+RENDER_TIMEOUT_SECONDS = int(os.environ.get("VIDEO_CATALOG_RENDER_TIMEOUT_SECONDS", "3600"))
 JOB_RESPONSE_FIELDS = (
     "id",
     "title",
@@ -319,13 +322,50 @@ def _render_job(job_id: str, request_path: Path) -> None:
             return
         assert process.stdout is not None
         renderer_output: list[str] = []
-        for line in process.stdout:
+        output_queue: Queue[str | None] = Queue()
+
+        def drain_renderer_output() -> None:
+            for line in process.stdout:
+                output_queue.put(line)
+            output_queue.put(None)
+
+        threading.Thread(target=drain_renderer_output, daemon=True).start()
+        deadline = time.monotonic() + RENDER_TIMEOUT_SECONDS
+        timed_out = False
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+                break
+            try:
+                line = output_queue.get(timeout=min(1, remaining))
+            except Empty:
+                continue
+            if line is None:
+                break
             try:
                 event = json.loads(line)
                 update_job(job_id, **{key: value for key, value in event.items() if key in {"progress", "stage"}})
             except json.JSONDecodeError:
                 renderer_output.append(line.rstrip())
                 renderer_output = renderer_output[-20:]
+        if timed_out:
+            update_job(
+                job_id,
+                status="failed",
+                error_code="render_timeout",
+                error=f"Remotion renderer exceeded the {RENDER_TIMEOUT_SECONDS}-second time limit.",
+            )
+            job = read_job(job_id)
+            if job:
+                Path(str(job["output"])).unlink(missing_ok=True)
+            return
         if process.wait() != 0:
             error = "\n".join(renderer_output)[-800:] or "Remotion renderer failed"
             update_job(
@@ -428,7 +468,7 @@ def montage_capabilities():
                 }
             )
         except (OSError, subprocess.TimeoutExpired) as error:
-            capability_probe = {
+            return {
                 "accelerated": False,
                 "error_code": "hardware_acceleration_unavailable",
                 "reason": str(error),

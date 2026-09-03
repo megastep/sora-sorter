@@ -27,6 +27,7 @@ type Props = {
   activePresetId: number | null;
   presetName: string;
   job: RenderJob | null;
+  exportStarting: boolean;
   exportError: string | null;
   presetError: string | null;
   onChange: (patch: Partial<MontageSettings>) => void;
@@ -40,7 +41,16 @@ type Props = {
 
 // fallow-ignore-next-line complexity -- settings controls share one preview-backed editor state and validation surface.
 export function MontageSettingsPanel(props: Props) {
-  const { settings, presets, activePresetId, presetName, job, exportError, presetError } = props;
+  const {
+    settings,
+    presets,
+    activePresetId,
+    presetName,
+    job,
+    exportStarting,
+    exportError,
+    presetError,
+  } = props;
   const changeEndPage = (patch: Partial<MontageSettings['endPage']>) =>
     props.onChange({ endPage: { ...settings.endPage, ...patch } });
 
@@ -235,7 +245,11 @@ export function MontageSettingsPanel(props: Props) {
               <Stack spacing={1}>
                 <Typography color="error.main">{job.error ?? 'Export failed'}</Typography>
                 {job.error_code === 'hardware_acceleration_unavailable' && (
-                  <Button variant="outlined" onClick={props.onSoftwareFallback}>
+                  <Button
+                    variant="outlined"
+                    disabled={exportStarting}
+                    onClick={props.onSoftwareFallback}
+                  >
                     Export with software fallback
                   </Button>
                 )}

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import sqlite3
 from collections.abc import Callable
@@ -255,6 +256,16 @@ def _list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
 
 
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    return value
+
+
 def _base(record: dict[str, Any]) -> dict[str, Any]:
     technical = record.get("technical", {})
     video = technical.get("video", {})
@@ -289,7 +300,7 @@ def _effective(db: sqlite3.Connection, video_id: str) -> dict[str, Any]:
     item["likeness_references"] = item.pop("likeness_references", json.loads(item.pop("likeness_json")))
     item["transcript_segments"] = json.loads(item.pop("transcript_segments_json"))
     item["favorite"] = bool(item["favorite"]); item["publishable"] = bool(item["publishable"])
-    return item
+    return _json_safe(item)
 
 
 def _index(db: sqlite3.Connection, video_id: str) -> None:

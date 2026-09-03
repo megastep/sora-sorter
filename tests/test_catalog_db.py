@@ -77,6 +77,15 @@ class CatalogDatabaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "keywords must be a list"):
             update(self.database, "a" * 64, {"keywords": "garden"})
 
+    def test_catalog_results_replace_non_finite_analysis_values_with_null(self) -> None:
+        record = analysis_record("Analysis")
+        record["audio_analysis"]["segments"] = [{"start": float("nan")}]
+        (self.records / "clip.json").write_text(json.dumps(record), encoding="utf-8")
+        import_directory(self.database, self.records)
+
+        videos, _ = list_videos(self.database)
+        self.assertIsNone(videos[0]["transcript_segments"][0]["start"])
+
     def test_rating_sorts_keep_unrated_videos_last(self) -> None:
         ids = {"high": "a" * 64, "low": "b" * 64, "unrated": "c" * 64}
         for name, video_id in ids.items():

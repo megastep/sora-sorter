@@ -11,7 +11,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { Player } from '@remotion/player';
+import { Player, type PlayerRef } from '@remotion/player';
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   fetchMontageCapabilities,
@@ -127,11 +127,13 @@ function MontageHeader({
 // fallow-ignore-next-line complexity -- editor settings are intentionally colocated with the shared preview state.
 export function MontagePage({
   ids,
+  active,
   onBack,
   onReorder,
   onExports,
 }: {
   ids: string[];
+  active: boolean;
   onBack: () => void;
   onReorder: (ids: string[]) => void;
   onExports: () => void;
@@ -152,8 +154,11 @@ export function MontagePage({
   const [presetsError, setPresetsError] = useState<string | null>(null);
   const hasInitializedEditor = useRef(false);
   const statusFailureCount = useRef(0);
+  const playerRef = useRef<PlayerRef>(null);
   useEffect(() => {
     let active = true;
+    setClips([]);
+    setClipsReady(false);
     // fallow-ignore-next-line complexity -- initializes title and orientation together from the selected first clip.
     void fetchMontageClips(ids)
       .then((items) => {
@@ -164,6 +169,7 @@ export function MontagePage({
       })
       .catch((error: unknown) => {
         if (!active) return;
+        setClips([]);
         setClipsError(error instanceof Error ? error.message : 'Could not load selected clips.');
         setClipsReady(true);
       });
@@ -171,6 +177,9 @@ export function MontagePage({
       active = false;
     };
   }, [ids]);
+  useEffect(() => {
+    if (!active) playerRef.current?.pause();
+  }, [active]);
   const settings = editor;
   const spec = useMemo<MontageSpec>(() => ({ clips, ...settings }), [clips, settings]);
   const applyPreset = (preset: MontagePreset) => {
@@ -325,6 +334,7 @@ export function MontagePage({
         <Box sx={{ display: 'grid', gap: 2, minWidth: 0 }}>
           <Paper sx={{ p: 1, bgcolor: 'common.black' }}>
             <Player
+              ref={playerRef}
               component={MontageComposition}
               inputProps={{ spec: previewSpec }}
               durationInFrames={previewFrames}

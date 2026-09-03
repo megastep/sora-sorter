@@ -180,7 +180,7 @@ job_lock = threading.Lock()
 capability_probe: dict[str, object] | None = None
 capability_probe_lock = threading.Lock()
 MONTAGE_PAGE_DURATION_SECONDS = 3
-RENDER_TIMEOUT_SECONDS = int(os.environ.get("VIDEO_CATALOG_RENDER_TIMEOUT_SECONDS", "3600"))
+RENDER_TIMEOUT_SECONDS = 3600
 JOB_RESPONSE_FIELDS = (
     "id",
     "title",
@@ -616,7 +616,8 @@ def montage_export_entry(export_id: int) -> dict[str, object]:
 
 def montage_export_file_path(entry: dict[str, object]) -> Path:
     output = active_paths().montage_directory / Path(str(entry["filename"])).name
-    return contained_montage_path(output)
+    contained_montage_path(output)
+    return output
 
 
 def contained_montage_path(output: Path) -> Path:
@@ -676,6 +677,7 @@ def parse_arguments() -> argparse.Namespace:
 
 
 load_local_environment(Path(__file__).with_name(".env"))
+RENDER_TIMEOUT_SECONDS = int(os.environ.get("VIDEO_CATALOG_RENDER_TIMEOUT_SECONDS", "3600"))
 
 
 if os.environ.get("VIDEO_CATALOG_LIBRARY_ROOT"):

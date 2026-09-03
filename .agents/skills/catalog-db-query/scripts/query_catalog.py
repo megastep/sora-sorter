@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sqlite3
 import sys
@@ -30,8 +31,8 @@ def positive_limit(value: str) -> int:
 
 def positive_number(value: str) -> float:
     number = float(value)
-    if number <= 0:
-        raise argparse.ArgumentTypeError("value must be greater than zero")
+    if not math.isfinite(number) or number <= 0:
+        raise argparse.ArgumentTypeError("value must be a finite number greater than zero")
     return number
 
 

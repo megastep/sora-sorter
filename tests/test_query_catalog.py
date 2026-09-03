@@ -245,6 +245,12 @@ class MontageCliTests(unittest.TestCase):
         self.assertIn("at least two unique video IDs", result.stderr)
         self.assertFalse(any(path == "/api/montages" for _, path, _ in self.requests))
 
+    def test_rejects_infinite_wait_timeout_during_argument_parsing(self) -> None:
+        result = self.run_cli("job", "job-1", "--wait", "--timeout", "inf")
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("finite number", result.stderr)
+
     def test_resolves_a_numeric_preset_name(self) -> None:
         self.preset["name"] = "2026"
 

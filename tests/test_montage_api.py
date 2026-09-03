@@ -181,6 +181,24 @@ class MontageApiTests(unittest.TestCase):
             catalog_app.download_montage("job-1")
 
         self.assertEqual(raised.exception.status_code, 404)
+
+    def test_deleting_a_montage_symlink_preserves_its_contained_target(self) -> None:
+        output_directory = self.root / ".catalog_montages"
+        output_directory.mkdir()
+        target = output_directory / "target.mp4"
+        target.write_bytes(b"montage")
+        linked_output = output_directory / "requested.mp4"
+        linked_output.symlink_to(target)
+        database = connect(self.root / "catalog.sqlite")
+        self.addCleanup(database.close)
+        record_montage_export(database, "export-1", "Requested", linked_output.name, 12)
+        export_id = database.execute(
+            "SELECT id FROM montage_exports WHERE job_id='export-1'"
+        ).fetchone()[0]
+
+        self.assertEqual(catalog_app.remove_montage_export(export_id), {"deleted": True})
+        self.assertTrue(target.exists())
+        self.assertFalse(linked_output.exists())
         with self.assertRaises(HTTPException) as raised:
             catalog_app.montage_export_path(export_id)
 

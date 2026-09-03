@@ -60,6 +60,7 @@ export function App() {
         <Box sx={{ display: location.pathname === '/montage' ? 'block' : 'none' }}>
           <MontagePage
             ids={montageSelection}
+            active={location.pathname === '/montage'}
             onBack={() => navigate('/')}
             onReorder={setMontageSelection}
             onExports={() => navigate('/montages')}

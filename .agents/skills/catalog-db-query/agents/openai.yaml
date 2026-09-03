@@ -1,0 +1,4 @@
+interface:
+  display_name: "Catalog Db Query"
+  short_description: "Read local catalog data safely"
+  default_prompt: "Use $catalog-db-query to inspect the local Sora Sorter catalog without changing it."

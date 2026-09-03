@@ -12,6 +12,7 @@ import {
   InputLabel,
   MenuItem,
   Paper,
+  Rating,
   Select,
   Stack,
   TextField,
@@ -181,24 +182,24 @@ export function Inspector({ item, onSaved }: { item: Video; onSaved: (value: Vid
             ))}
           </Select>
         </FormControl>
-        <FormControl fullWidth>
-          <InputLabel id="rating-label">Rating</InputLabel>
-          <Select
-            labelId="rating-label"
-            label="Rating"
-            value={draft.rating ?? ''}
-            onChange={(event) =>
-              set('rating', event.target.value ? Number(event.target.value) : null)
-            }
-          >
-            <MenuItem value="">None</MenuItem>
-            {[1, 2, 3, 4, 5].map((value) => (
-              <MenuItem key={value} value={value}>
-                {value}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <Stack spacing={0.5}>
+          <Typography id="rating-label" variant="body2" color="text.secondary">
+            Rating
+          </Typography>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            <Rating
+              name="rating"
+              aria-labelledby="rating-label"
+              value={draft.rating}
+              onChange={(_, value) => set('rating', value)}
+            />
+            {draft.rating !== null && (
+              <Button size="small" onClick={() => set('rating', null)}>
+                Clear
+              </Button>
+            )}
+          </Stack>
+        </Stack>
         <Stack direction="row" spacing={1}>
           <FormControlLabel
             control={

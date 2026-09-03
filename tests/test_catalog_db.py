@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from catalog_db import connect, import_directory, initialize, list_videos, update
+from catalog_db import connect, import_directory, initialize, list_videos, migrate, update
 
 
 def analysis_record(summary: str) -> dict:
@@ -68,3 +68,28 @@ class CatalogDatabaseTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "keywords must be a list"):
             update(self.database, "a" * 64, {"keywords": "garden"})
+
+    def test_migrations_are_recorded_once_for_a_new_database(self) -> None:
+        database = connect(self.root / "new-catalog.sqlite")
+        self.addCleanup(database.close)
+
+        self.assertEqual(migrate(database), [1])
+        self.assertEqual(migrate(database), [])
+        self.assertEqual(
+            [tuple(row) for row in database.execute("SELECT version, name FROM schema_migrations")],
+            [(1, "initial_schema")],
+        )
+
+    def test_migrations_adopt_a_legacy_catalog_without_changing_edits(self) -> None:
+        self.write_record("Analysis")
+        import_directory(self.database, self.records)
+        update(self.database, "a" * 64, {"title": "Saved title", "review_status": "approved"})
+        self.database.execute("DROP TABLE schema_migrations")
+        self.database.commit()
+
+        self.assertEqual(migrate(self.database), [1])
+        videos, total = list_videos(self.database)
+
+        self.assertEqual(total, 1)
+        self.assertEqual(videos[0]["title"], "Saved title")
+        self.assertEqual(videos[0]["review_status"], "approved")

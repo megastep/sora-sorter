@@ -49,6 +49,17 @@ The default database and poster cache live in the library root so the app can
 move independently of the media library. You may place them elsewhere with
 configuration options below.
 
+## Database migrations
+
+The app runs SQLite migrations automatically before each request and import.
+Applied versions are recorded in `schema_migrations`; a new migration is added
+to `MIGRATIONS` in `catalog_db.py` with the next integer version. Migrations
+run in one transaction, and existing catalogs are adopted by the idempotent
+initial-schema migration without changing video or editorial data.
+
+Back up `catalog.sqlite` before deploying a migration that changes existing
+data. Test both a fresh database and a catalog created by the prior version.
+
 ## Requirements
 
 - Python 3.11 or newer

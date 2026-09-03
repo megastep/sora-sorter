@@ -4,11 +4,13 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 EDITABLE = {"title", "summary", "keywords", "language", "transcript", "visible_text", "content_flags", "likeness_references"}
 REVIEW_STATES = {"unreviewed", "shortlisted", "approved", "rejected"}
+Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
 
 def connect(path: Path) -> sqlite3.Connection:
@@ -19,30 +21,83 @@ def connect(path: Path) -> sqlite3.Connection:
     return db
 
 
+def _initial_schema(db: sqlite3.Connection) -> None:
+    statements = (
+        """
+        CREATE TABLE IF NOT EXISTS videos (
+          id TEXT PRIMARY KEY, raw_json TEXT NOT NULL, source_path TEXT NOT NULL,
+          current_path TEXT NOT NULL, original_filename TEXT NOT NULL, title TEXT NOT NULL,
+          summary TEXT NOT NULL DEFAULT '', transcript TEXT NOT NULL DEFAULT '', language TEXT,
+          speech_present INTEGER, orientation TEXT, duration_seconds REAL, width INTEGER, height INTEGER,
+          keywords_json TEXT NOT NULL DEFAULT '[]', visible_text_json TEXT NOT NULL DEFAULT '[]',
+          content_flags_json TEXT NOT NULL DEFAULT '[]', likeness_json TEXT NOT NULL DEFAULT '[]',
+          transcript_segments_json TEXT NOT NULL DEFAULT '[]', imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS overrides (
+          video_id TEXT PRIMARY KEY REFERENCES videos(id) ON DELETE CASCADE,
+          descriptive_json TEXT NOT NULL DEFAULT '{}', review_status TEXT NOT NULL DEFAULT 'unreviewed',
+          rating INTEGER, favorite INTEGER NOT NULL DEFAULT 0, publishable INTEGER NOT NULL DEFAULT 0,
+          notes TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CHECK (review_status IN ('unreviewed','shortlisted','approved','rejected')),
+          CHECK (rating IS NULL OR rating BETWEEN 1 AND 5)
+        )
+        """,
+        "CREATE VIRTUAL TABLE IF NOT EXISTS video_fts USING fts5(video_id UNINDEXED, title, summary, keywords, visible_text, transcript)",
+        "CREATE INDEX IF NOT EXISTS videos_language_idx ON videos(language)",
+        "CREATE INDEX IF NOT EXISTS videos_orientation_idx ON videos(orientation)",
+        "CREATE INDEX IF NOT EXISTS overrides_review_idx ON overrides(review_status, favorite, publishable, rating)",
+    )
+    for statement in statements:
+        db.execute(statement)
+
+
+MIGRATIONS: tuple[Migration, ...] = ((1, "initial_schema", _initial_schema),)
+
+
+def migrate(db: sqlite3.Connection) -> list[int]:
+    """Apply all known schema migrations and return the newly applied versions."""
+    versions = [version for version, _, _ in MIGRATIONS]
+    if versions != sorted(set(versions)):
+        raise RuntimeError("Migration versions must be unique and increasing")
+    known = {version: name for version, name, _ in MIGRATIONS}
+
+    with db:
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+              version INTEGER PRIMARY KEY,
+              name TEXT NOT NULL,
+              applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        applied = {
+            row["version"]: row["name"]
+            for row in db.execute("SELECT version, name FROM schema_migrations")
+        }
+        unknown = set(applied) - set(known)
+        if unknown:
+            raise RuntimeError(f"Database has unknown migration versions: {sorted(unknown)}")
+        mismatched = [version for version, name in applied.items() if known[version] != name]
+        if mismatched:
+            raise RuntimeError(f"Database migration names do not match: {sorted(mismatched)}")
+
+        newly_applied = []
+        for version, name, apply in MIGRATIONS:
+            if version not in applied:
+                apply(db)
+                db.execute(
+                    "INSERT INTO schema_migrations(version, name) VALUES (?, ?)",
+                    (version, name),
+                )
+                newly_applied.append(version)
+    return newly_applied
+
+
 def initialize(db: sqlite3.Connection) -> None:
-    db.executescript("""
-    CREATE TABLE IF NOT EXISTS videos (
-      id TEXT PRIMARY KEY, raw_json TEXT NOT NULL, source_path TEXT NOT NULL,
-      current_path TEXT NOT NULL, original_filename TEXT NOT NULL, title TEXT NOT NULL,
-      summary TEXT NOT NULL DEFAULT '', transcript TEXT NOT NULL DEFAULT '', language TEXT,
-      speech_present INTEGER, orientation TEXT, duration_seconds REAL, width INTEGER, height INTEGER,
-      keywords_json TEXT NOT NULL DEFAULT '[]', visible_text_json TEXT NOT NULL DEFAULT '[]',
-      content_flags_json TEXT NOT NULL DEFAULT '[]', likeness_json TEXT NOT NULL DEFAULT '[]',
-      transcript_segments_json TEXT NOT NULL DEFAULT '[]', imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS overrides (
-      video_id TEXT PRIMARY KEY REFERENCES videos(id) ON DELETE CASCADE,
-      descriptive_json TEXT NOT NULL DEFAULT '{}', review_status TEXT NOT NULL DEFAULT 'unreviewed',
-      rating INTEGER, favorite INTEGER NOT NULL DEFAULT 0, publishable INTEGER NOT NULL DEFAULT 0,
-      notes TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      CHECK (review_status IN ('unreviewed','shortlisted','approved','rejected')),
-      CHECK (rating IS NULL OR rating BETWEEN 1 AND 5)
-    );
-    CREATE VIRTUAL TABLE IF NOT EXISTS video_fts USING fts5(video_id UNINDEXED, title, summary, keywords, visible_text, transcript);
-    CREATE INDEX IF NOT EXISTS videos_language_idx ON videos(language);
-    CREATE INDEX IF NOT EXISTS videos_orientation_idx ON videos(orientation);
-    CREATE INDEX IF NOT EXISTS overrides_review_idx ON overrides(review_status, favorite, publishable, rating);
-    """)
+    migrate(db)
 
 
 def _list(value: Any) -> list[Any]:

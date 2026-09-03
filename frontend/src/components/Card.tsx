@@ -172,7 +172,7 @@ export function Card({
                 readOnly
                 size="small"
                 aria-label={`${item.rating} out of 5 stars`}
-                sx={{ color: 'primary.main', fontSize: '1rem' }}
+                sx={{ color: 'warning.main', fontSize: '1rem' }}
               />
             )}
             {item.favorite && (

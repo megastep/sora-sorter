@@ -223,17 +223,24 @@ pnpm --dir frontend build
 Useful checks:
 
 ```sh
+uv run python -m unittest discover -s tests -v
 cd frontend
 pnpm run doctor
 pnpm lint
 pnpm format:check
 pnpm exec tsc --noEmit
+pnpm test
+pnpm run fallow
 pnpm build
 ```
 
 `pnpm run doctor` is the React Doctor quality gate. It must report no findings
 before a change is merged. Use `run` deliberately: `pnpm doctor` invokes
 pnpm's unrelated built-in diagnostic command.
+
+`pnpm run fallow` reports TypeScript files that are runtime-reachable but not
+yet imported by a test. It is informational while the initial coverage backlog
+is being reduced; do not suppress a gap without a reason.
 
 To apply the repository’s formatting rules:
 

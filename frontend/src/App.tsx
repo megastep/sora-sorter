@@ -26,9 +26,14 @@ import {
   FilterListRounded,
   VideoLibraryRounded,
 } from '@mui/icons-material';
-import { type InfiniteData, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  type InfiniteData,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { fetchVideoPage, reimportCatalog, type VideoPage } from './api';
+import { fetchKeywordSummaries, fetchVideoPage, reimportCatalog, type VideoPage } from './api';
 import { type Filters, type Video } from './catalog';
 import { Card } from './components/Card';
 import { FiltersPanel } from './components/FiltersPanel';
@@ -65,6 +70,7 @@ export function App() {
       return loaded < lastPage.total ? loaded : undefined;
     },
   });
+  const keywords = useQuery({ queryKey: ['keywords'], queryFn: fetchKeywordSummaries });
   const items = videos.data?.pages.flatMap((page) => page.items) ?? [];
   const total = videos.data?.pages[0]?.total ?? 0;
   const selected = selectedId ? (items.find((item) => item.id === selectedId) ?? null) : null;
@@ -104,13 +110,17 @@ export function App() {
           }
         : current,
     );
+    void queryClient.invalidateQueries({ queryKey: ['keywords'] });
   };
   const reimport = async () => {
     if (importing) return;
     setImporting(true);
     try {
       await reimportCatalog();
-      await queryClient.invalidateQueries({ queryKey: ['videos'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['videos'] }),
+        queryClient.invalidateQueries({ queryKey: ['keywords'] }),
+      ]);
     } finally {
       setImporting(false);
     }
@@ -159,6 +169,8 @@ export function App() {
               <MenuItem value="title">Title A–Z</MenuItem>
               <MenuItem value="title_desc">Title Z–A</MenuItem>
               <MenuItem value="duration">Longest first</MenuItem>
+              <MenuItem value="rating_desc">Rating: highest first</MenuItem>
+              <MenuItem value="rating_asc">Rating: lowest first</MenuItem>
               <MenuItem value="language">Language A–Z</MenuItem>
             </Select>
           </FormControl>
@@ -198,13 +210,22 @@ export function App() {
           square
           sx={{ display: { xs: 'none', lg: 'block' }, borderRight: 1, borderColor: 'divider' }}
         >
-          <FiltersPanel filters={filters} setFilters={setFilters} />
+          <FiltersPanel
+            filters={filters}
+            setFilters={setFilters}
+            keywords={keywords.data ?? []}
+            keywordsLoading={keywords.isLoading}
+            keywordsError={keywords.isError}
+          />
         </Paper>
         <Drawer anchor="left" open={filtersOpen} onClose={() => setFiltersOpen(false)}>
           <Box sx={{ width: 300 }}>
             <FiltersPanel
               filters={filters}
               setFilters={setFilters}
+              keywords={keywords.data ?? []}
+              keywordsLoading={keywords.isLoading}
+              keywordsError={keywords.isError}
               onClose={() => setFiltersOpen(false)}
             />
           </Box>

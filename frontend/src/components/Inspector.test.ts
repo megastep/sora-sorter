@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeKeywords } from './Inspector';
+import { normalizePills } from './PillInput';
 
-describe('normalizeKeywords', () => {
-  it('turns comma-separated input into distinct, trimmed keyword pills', () => {
-    expect(normalizeKeywords(['woman, explorer', ' canyon ', 'EXPLORER'])).toEqual([
+describe('normalizePills', () => {
+  it('turns comma-separated entries into distinct, trimmed pills for keywords and flags', () => {
+    expect(normalizePills(['woman, explorer', ' canyon ', 'EXPLORER'])).toEqual([
       'woman',
       'explorer',
       'canyon',
+    ]);
+    expect(normalizePills(['violence, flashing lights', 'Violence'])).toEqual([
+      'violence',
+      'flashing lights',
     ]);
   });
 });

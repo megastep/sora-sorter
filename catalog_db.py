@@ -213,6 +213,29 @@ def list_videos(db: sqlite3.Connection, *, q: str = "", language: str = "", orie
         "title_desc": "COALESCE(json_extract(o.descriptive_json, '$.title'), v.title) COLLATE NOCASE DESC, v.id",
         "duration": "v.duration_seconds DESC, v.id",
         "language": "v.language COLLATE NOCASE, COALESCE(json_extract(o.descriptive_json, '$.title'), v.title) COLLATE NOCASE, v.id",
+        "rating_desc": "o.rating IS NULL, o.rating DESC, v.id",
+        "rating_asc": "o.rating IS NULL, o.rating ASC, v.id",
     }
     rows = db.execute("SELECT v.id FROM videos v JOIN overrides o ON o.video_id=v.id" + clause + f" ORDER BY {orders.get(sort, orders['newest'])} LIMIT ? OFFSET ?", params + [min(max(limit, 1), 100), max(offset, 0)]).fetchall()
     return [_effective(db, row["id"]) for row in rows], total
+
+
+def list_keywords(db: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Return every effective keyword with the number of videos that use it."""
+    rows = db.execute(
+        """
+        SELECT MIN(keyword) AS keyword, COUNT(*) AS count
+        FROM (
+          SELECT trim(CAST(keyword_values.value AS TEXT)) AS keyword
+          FROM videos v
+          JOIN overrides o ON o.video_id = v.id
+          CROSS JOIN json_each(
+            COALESCE(json_extract(o.descriptive_json, '$.keywords'), v.keywords_json)
+          ) AS keyword_values
+        )
+        WHERE keyword <> ''
+        GROUP BY keyword COLLATE NOCASE
+        ORDER BY keyword COLLATE NOCASE
+        """
+    ).fetchall()
+    return [{"keyword": row["keyword"], "count": row["count"]} for row in rows]

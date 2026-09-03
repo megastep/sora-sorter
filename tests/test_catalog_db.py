@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from catalog_db import connect, import_directory, initialize, list_videos, migrate, update
+from catalog_db import connect, import_directory, initialize, list_keywords, list_videos, migrate, update
 
 
 def analysis_record(summary: str) -> dict:
@@ -35,8 +35,16 @@ class CatalogDatabaseTests(unittest.TestCase):
         self.database.close()
         self.workspace.cleanup()
 
-    def write_record(self, summary: str) -> None:
-        (self.records / "clip.json").write_text(json.dumps(analysis_record(summary)), encoding="utf-8")
+    def write_record(
+        self,
+        summary: str,
+        *,
+        video_id: str = "a" * 64,
+        filename: str = "clip.json",
+    ) -> None:
+        record = analysis_record(summary)
+        record["id"] = video_id
+        (self.records / filename).write_text(json.dumps(record), encoding="utf-8")
 
     def test_reimport_refreshes_analysis_without_losing_editorial_changes(self) -> None:
         self.write_record("Original analysis")
@@ -68,6 +76,38 @@ class CatalogDatabaseTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "keywords must be a list"):
             update(self.database, "a" * 64, {"keywords": "garden"})
+
+    def test_rating_sorts_keep_unrated_videos_last(self) -> None:
+        ids = {"high": "a" * 64, "low": "b" * 64, "unrated": "c" * 64}
+        for name, video_id in ids.items():
+            self.write_record(name, video_id=video_id, filename=f"{name}.json")
+        import_directory(self.database, self.records)
+        update(self.database, ids["high"], {"rating": 5})
+        update(self.database, ids["low"], {"rating": 2})
+
+        ascending, _ = list_videos(self.database, sort="rating_asc")
+        descending, _ = list_videos(self.database, sort="rating_desc")
+
+        self.assertEqual([video["id"] for video in ascending], [ids["low"], ids["high"], ids["unrated"]])
+        self.assertEqual([video["id"] for video in descending], [ids["high"], ids["low"], ids["unrated"]])
+
+    def test_keyword_summary_uses_effective_editorial_keywords(self) -> None:
+        ids = {"garden": "a" * 64, "forest": "b" * 64, "lake": "c" * 64}
+        for name, video_id in ids.items():
+            self.write_record(name, video_id=video_id, filename=f"{name}.json")
+        import_directory(self.database, self.records)
+        update(self.database, ids["garden"], {"keywords": ["garden", "aardvark"]})
+        update(self.database, ids["forest"], {"keywords": ["forest"]})
+        update(self.database, ids["lake"], {"keywords": ["forest", "garden"]})
+
+        self.assertEqual(
+            list_keywords(self.database),
+            [
+                {"keyword": "aardvark", "count": 1},
+                {"keyword": "forest", "count": 2},
+                {"keyword": "garden", "count": 2},
+            ],
+        )
 
     def test_migrations_are_recorded_once_for_a_new_database(self) -> None:
         database = connect(self.root / "new-catalog.sqlite")

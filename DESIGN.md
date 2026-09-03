@@ -24,9 +24,11 @@ Use 8px radii for chips, 10px for controls and nested surfaces, and 14px for car
 
 ## Components and States
 
-Use MUI controls and semantic tokens before local styling. Buttons have a 36px minimum height; contained buttons are reserved for import and save actions. Inputs, selects, menus, alerts, and accordions inherit shared theme rules. Labels sit above inputs, and visible helper or error text stays below them. Keywords use comma-separated entry and render as removable pills.
+Use MUI controls and semantic tokens before local styling. Buttons have a 36px minimum height; contained buttons are reserved for import and save actions. Inputs, selects, menus, alerts, and accordions inherit shared theme rules. Labels sit above inputs, and visible helper or error text stays below them. Keywords and content flags use comma-separated entry and render as removable pills.
 
 Cards are poster-first. Clicking a poster selects it for editing; the play overlay opens playback. The selected state uses the primary outline and tint, not a new color. Media itself may use black as a neutral viewing surface.
+
+The filter rail keeps search and discovery together: a compact Keywords button directly below Search opens an outlined popover of clickable keyword pills, ordered alphabetically. Popular keywords use a restrained larger type scale; selecting a pill fills Search and closes the popover.
 
 ## Color Modes and Responsive Behavior
 

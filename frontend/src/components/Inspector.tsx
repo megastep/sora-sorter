@@ -3,7 +3,6 @@ import {
   AccordionDetails,
   AccordionSummary,
   Alert,
-  Autocomplete,
   Box,
   Button,
   Checkbox,
@@ -24,24 +23,8 @@ import { CloseRounded, ExpandMoreRounded, SaveRounded } from '@mui/icons-materia
 import { useState } from 'react';
 import { API, toDraft, type Draft, type ReviewStatus, type Video } from '../catalog';
 import { catalogDesign } from '../theme';
+import { PillInput } from './PillInput';
 import { ReferenceEditor } from './ReferenceEditor';
-
-export const normalizeKeywords = (values: readonly string[]) => {
-  const seen = new Set<string>();
-  const keywords: string[] = [];
-
-  for (const entry of values) {
-    for (const part of entry.split(',')) {
-      const keyword = part.trim();
-      const key = keyword.toLowerCase();
-      if (!keyword || seen.has(key)) continue;
-      seen.add(key);
-      keywords.push(keyword);
-    }
-  }
-
-  return keywords;
-};
 
 export function Inspector({
   item,
@@ -58,13 +41,12 @@ export function Inspector({
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [keywordInput, setKeywordInput] = useState('');
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     setSaved(false);
     setDraft((current) => ({ ...current, [key]: value }));
   };
-  const lines = (key: 'keywords' | 'visible_text' | 'content_flags', label: string) => (
+  const lines = (key: 'visible_text', label: string) => (
     <TextField
       label={label}
       value={draft[key].join('\n')}
@@ -161,36 +143,11 @@ export function Inspector({
           onChange={(event) => set('title', event.target.value)}
           fullWidth
         />
-        <Autocomplete<string, true, false, true>
-          multiple
-          freeSolo
-          autoSelect
-          options={[]}
+        <PillInput
+          label="Keywords"
+          placeholder="Add a keyword, then press Enter or comma"
           value={draft.keywords}
-          inputValue={keywordInput}
-          onChange={(_, values) => {
-            set('keywords', normalizeKeywords(values));
-            setKeywordInput('');
-          }}
-          onInputChange={(_, value, reason) => {
-            if (reason !== 'input' || !value.includes(',')) {
-              setKeywordInput(value);
-              return;
-            }
-
-            const parts = value.split(',');
-            const pending = parts.pop() ?? '';
-            const keywords = normalizeKeywords([...draft.keywords, ...parts]);
-            if (keywords.length !== draft.keywords.length) set('keywords', keywords);
-            setKeywordInput(pending);
-          }}
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              label="Keywords"
-              placeholder="Add a keyword, then press Enter or comma"
-            />
-          )}
+          onChange={(value) => set('keywords', value)}
         />
         <TextField
           label="Language"
@@ -225,7 +182,14 @@ export function Inspector({
         </Accordion>
         <Accordion disableGutters>
           <AccordionSummary expandIcon={<ExpandMoreRounded />}>Content flags</AccordionSummary>
-          <AccordionDetails>{lines('content_flags', 'Content flags')}</AccordionDetails>
+          <AccordionDetails>
+            <PillInput
+              label="Content flags"
+              placeholder="Add a content flag, then press Enter or comma"
+              value={draft.content_flags}
+              onChange={(value) => set('content_flags', value)}
+            />
+          </AccordionDetails>
         </Accordion>
         <Accordion disableGutters>
           <AccordionSummary expandIcon={<ExpandMoreRounded />}>

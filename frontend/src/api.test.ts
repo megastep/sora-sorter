@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchVideoPage, reimportCatalog } from './api';
+import { fetchKeywordSummaries, fetchVideoPage, reimportCatalog } from './api';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -19,5 +19,18 @@ describe('catalog API', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 500 })));
 
     await expect(reimportCatalog()).rejects.toThrow('Could not reimport catalog (500)');
+  });
+
+  it('loads keyword counts for the keyword cloud', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ items: [{ keyword: 'garden', count: 4 }] })),
+        ),
+    );
+
+    await expect(fetchKeywordSummaries()).resolves.toEqual([{ keyword: 'garden', count: 4 }]);
   });
 });

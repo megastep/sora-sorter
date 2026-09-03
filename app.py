@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from catalog_db import _effective, connect, import_directory, initialize, list_videos, update
+from catalog_db import _effective, connect, import_directory, initialize, list_keywords, list_videos, update
 
 
 @dataclass(frozen=True)
@@ -124,6 +124,15 @@ def videos(request: Request, q: str = "", language: str = "", orientation: str =
     try:
         items, total = list_videos(connection, q=q, language=language, orientation=orientation, speech=speech, review=review, favorite=favorite, publishable=publishable, flag=flag, sort=sort, limit=limit, offset=offset)
         return {"items": items, "total": total}
+    finally:
+        connection.close()
+
+
+@app.get("/api/keywords")
+def keywords():
+    connection = db()
+    try:
+        return {"items": list_keywords(connection)}
     finally:
         connection.close()
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent, useRef } from 'react';
 import { API, type Video } from '../catalog';
 
 export function Lightbox({
@@ -13,41 +13,47 @@ export function Lightbox({
   onSelect: (value: Video) => void;
 }) {
   const dialog = useRef<HTMLDialogElement | null>(null);
+  const video = useRef<HTMLVideoElement | null>(null);
+  const resumePlayback = useRef(false);
   const index = Math.max(
     0,
     items.findIndex((candidate) => candidate.id === item.id),
   );
   const hasNeighbors = items.length > 1;
-  const selectOffset = (offset: number) => {
-    onSelect(items[(index + offset + items.length) % items.length]);
+  const navigate = (value: Video) => {
+    resumePlayback.current = Boolean(
+      video.current && !video.current.paused && !video.current.ended,
+    );
+    onSelect(value);
   };
-  const keyboardState = useRef({ hasNeighbors, index, items, onClose, onSelect });
+  const selectOffset = (offset: number) => {
+    navigate(items[(index + offset + items.length) % items.length]);
+  };
+  const handleKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (event.key === 'Escape') onClose();
+    if (hasNeighbors && event.key === 'ArrowLeft') {
+      navigate(items[(index - 1 + items.length) % items.length]);
+    }
+    if (hasNeighbors && event.key === 'ArrowRight') {
+      navigate(items[(index + 1) % items.length]);
+    }
+  });
 
   useEffect(() => {
-    keyboardState.current = { hasNeighbors, index, items, onClose, onSelect };
-  }, [hasNeighbors, index, items, onClose, onSelect]);
+    if (!resumePlayback.current) return;
+    resumePlayback.current = false;
+    void video.current?.play().catch(() => {});
+  }, [item.id]);
 
   useEffect(() => {
     const currentDialog = dialog.current;
     currentDialog?.showModal();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const current = keyboardState.current;
-      if (event.key === 'Escape') current.onClose();
-      if (current.hasNeighbors && event.key === 'ArrowLeft') {
-        current.onSelect(
-          current.items[(current.index - 1 + current.items.length) % current.items.length],
-        );
-      }
-      if (current.hasNeighbors && event.key === 'ArrowRight') {
-        current.onSelect(current.items[(current.index + 1) % current.items.length]);
-      }
-    };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       currentDialog?.close();
     };
-  }, [dialog, keyboardState]);
+  }, [dialog]);
 
   return (
     <dialog ref={dialog} className="lightbox" aria-label="Video lightbox" onCancel={onClose}>
@@ -63,6 +69,7 @@ export function Lightbox({
         </button>
       </header>
       <video
+        ref={video}
         key={item.id}
         controls
         preload="metadata"

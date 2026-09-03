@@ -38,6 +38,10 @@ export function App() {
   useEffect(() => {
     window.sessionStorage.setItem(selectionStorageKey, JSON.stringify(montageSelection));
   }, [montageSelection]);
+  useEffect(() => {
+    if (location.pathname === '/montage') setMontageMounted(true);
+  }, [location.pathname]);
+  const shouldMountMontage = montageMounted || location.pathname === '/montage';
 
   return (
     <ThemeProvider theme={theme}>
@@ -56,7 +60,7 @@ export function App() {
           active={location.pathname === '/'}
         />
       </Box>
-      {montageMounted && (
+      {shouldMountMontage && (
         <Box sx={{ display: location.pathname === '/montage' ? 'block' : 'none' }}>
           <MontagePage
             ids={montageSelection}

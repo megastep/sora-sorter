@@ -391,9 +391,9 @@ export function MontagePage({
           onDeletePreset={() =>
             void deleteMontagePreset(activePresetId!)
               .then(() => {
+                setPresets((current) => current.filter((preset) => preset.id !== activePresetId));
                 setActivePresetId(null);
                 setPresetName('');
-                void refreshPresets();
               })
               .catch((error: unknown) =>
                 setPresetError(error instanceof Error ? error.message : 'Could not delete preset.'),

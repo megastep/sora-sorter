@@ -158,6 +158,22 @@ class MontageApiTests(unittest.TestCase):
         with self.assertRaises(KeyError):
             montage_export(database, export_id)
 
+    def test_file_removal_failure_preserves_the_export_record(self) -> None:
+        output_directory = self.root / ".catalog_montages"
+        output_directory.mkdir()
+        output = output_directory / "export.mp4"
+        output.touch()
+        database = connect(self.root / "catalog.sqlite")
+        self.addCleanup(database.close)
+        record_montage_export(database, "job-1", "Export", output.name, 12)
+        export_id = database.execute("SELECT id FROM montage_exports WHERE job_id='job-1'").fetchone()[0]
+
+        with patch("pathlib.Path.unlink", side_effect=OSError("read-only directory")):
+            with self.assertRaises(OSError):
+                catalog_app.remove_montage_export(export_id)
+
+        self.assertEqual(montage_export(database, export_id)["filename"], output.name)
+
     def test_rejects_montage_symlinks_that_escape_the_export_directory(self) -> None:
         output_directory = self.root / ".catalog_montages"
         output_directory.mkdir()

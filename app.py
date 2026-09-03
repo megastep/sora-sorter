@@ -639,6 +639,7 @@ def stream_montage_export(export_id: int):
 def remove_montage_export(export_id: int):
     entry = montage_export_entry(export_id)
     output = montage_export_file_path(entry)
+    output.unlink(missing_ok=True)
     connection = db()
     try:
         delete_montage_export(connection, export_id)
@@ -646,7 +647,6 @@ def remove_montage_export(export_id: int):
         raise HTTPException(404, "Montage export not found")
     finally:
         connection.close()
-    output.unlink(missing_ok=True)
     return {"deleted": True}
 
 

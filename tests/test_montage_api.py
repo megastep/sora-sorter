@@ -113,3 +113,31 @@ class MontageApiTests(unittest.TestCase):
         self.assertEqual(catalog_app.remove_montage_export(export_id), {"deleted": True})
         with self.assertRaises(KeyError):
             montage_export(database, export_id)
+
+    def test_rejects_montage_symlinks_that_escape_the_export_directory(self) -> None:
+        output_directory = self.root / ".catalog_montages"
+        output_directory.mkdir()
+        external_file = self.root / "outside.mp4"
+        external_file.write_bytes(b"private")
+        linked_output = output_directory / "export.mp4"
+        linked_output.symlink_to(external_file)
+        database = connect(self.root / "catalog.sqlite")
+        self.addCleanup(database.close)
+        record_montage_export(database, "export-1", "Escaped", linked_output.name, 12)
+        export_id = database.execute(
+            "SELECT id FROM montage_exports WHERE job_id='export-1'"
+        ).fetchone()[0]
+        catalog_app.jobs["job-1"] = {
+            "id": "job-1",
+            "status": "completed",
+            "output": str(linked_output),
+        }
+
+        with self.assertRaises(HTTPException) as raised:
+            catalog_app.download_montage("job-1")
+
+        self.assertEqual(raised.exception.status_code, 404)
+        with self.assertRaises(HTTPException) as raised:
+            catalog_app.montage_export_path(export_id)
+
+        self.assertEqual(raised.exception.status_code, 404)

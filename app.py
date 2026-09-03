@@ -535,8 +535,8 @@ def download_montage(job_id: str):
     job = read_job(job_id)
     if not job or job["status"] != "completed":
         raise HTTPException(404, "Montage export is not ready")
-    output = Path(str(job["output"]))
-    if not output.is_file() or active_paths().montage_directory not in output.parents:
+    output = contained_montage_path(Path(str(job["output"])))
+    if not output.is_file():
         raise HTTPException(404, "Montage file is unavailable")
     return FileResponse(output, media_type="video/mp4", filename=output.name)
 
@@ -576,9 +576,17 @@ def montage_export_entry(export_id: int) -> dict[str, object]:
 
 def montage_export_file_path(entry: dict[str, object]) -> Path:
     output = active_paths().montage_directory / Path(str(entry["filename"])).name
-    if active_paths().montage_directory not in output.parents:
+    return contained_montage_path(output)
+
+
+def contained_montage_path(output: Path) -> Path:
+    root = active_paths().montage_directory.resolve()
+    resolved_output = output.resolve()
+    try:
+        resolved_output.relative_to(root)
+    except ValueError:
         raise HTTPException(404, "Montage file is unavailable")
-    return output
+    return resolved_output
 
 
 @app.get("/api/montage-exports/{export_id}/media")

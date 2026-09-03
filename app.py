@@ -15,11 +15,12 @@ import threading
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 from catalog_db import _effective, connect, delete_montage_export, delete_montage_preset, import_directory, initialize, list_keywords, list_montage_exports, list_montage_presets, list_video_ids, list_videos, montage_export, record_montage_export, save_montage_preset, update, use_montage_preset
 
@@ -125,14 +126,49 @@ class BatchPayload(BaseModel):
     ids: list[str]
 
 
+class MontageEndPage(BaseModel):
+    enabled: bool
+    title: str = Field(max_length=200)
+    subtitle: str = Field(max_length=200)
+    fontSize: float = Field(ge=32, le=180)
+    subtitleFontSize: float = Field(ge=16, le=120)
+
+
+class MontageSettingsPayload(BaseModel):
+    format: Literal["landscape", "portrait"]
+    fillMismatchedOrientation: bool
+    title: str = Field(max_length=200)
+    titleSubtitle: str = Field(max_length=200)
+    titleFontSize: float = Field(ge=32, le=180)
+    titleSubtitleFontSize: float = Field(ge=16, le=120)
+    transition: Literal["cut", "crossfade", "slide", "wipe"]
+    transitionDuration: float = Field(ge=0, le=2)
+    cutColor: str = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
+    endPage: MontageEndPage
+
+    @model_validator(mode="after")
+    def validate_transition_duration(self):
+        if self.transition != "cut" and self.transitionDuration < 0.1:
+            raise ValueError("Non-cut transitions must last at least 0.1 seconds")
+        return self
+
+
+class MontageClipPayload(BaseModel):
+    id: str
+
+
+class MontageSpecPayload(MontageSettingsPayload):
+    clips: list[MontageClipPayload] = Field(min_length=2)
+
+
 class MontageRequest(BaseModel):
-    spec: dict
+    spec: MontageSpecPayload
     software_fallback: bool = False
 
 
 class MontagePresetPayload(BaseModel):
     name: str
-    settings: dict
+    settings: MontageSettingsPayload
 
 
 app = FastAPI(title="Video Catalog")
@@ -140,6 +176,7 @@ jobs: dict[str, dict] = {}
 job_lock = threading.Lock()
 capability_probe: dict[str, object] | None = None
 capability_probe_lock = threading.Lock()
+MONTAGE_PAGE_DURATION_SECONDS = 3
 
 
 @app.get("/api/videos")
@@ -258,47 +295,6 @@ def _render_job(job_id: str, request_path: Path) -> None:
         request_path.unlink(missing_ok=True)
 
 
-def validate_montage_spec(spec: object) -> dict:
-    if not isinstance(spec, dict):
-        raise HTTPException(400, "Montage specification must be an object")
-    clips = spec.get("clips")
-    if not isinstance(clips, list) or len(clips) < 2:
-        raise HTTPException(400, "A montage needs at least two clips")
-    if spec.get("format") not in {"landscape", "portrait"}:
-        raise HTTPException(400, "Montage format must be landscape or portrait")
-    if not isinstance(spec.get("fillMismatchedOrientation"), bool):
-        raise HTTPException(400, "Montage mixed-orientation fill must be enabled or disabled")
-    if spec.get("transition") not in {"cut", "crossfade", "slide", "wipe"}:
-        raise HTTPException(400, "Unknown montage transition")
-    if not isinstance(spec.get("title"), str) or len(spec["title"]) > 200:
-        raise HTTPException(400, "Montage title must be at most 200 characters")
-    if not isinstance(spec.get("titleSubtitle"), str) or len(spec["titleSubtitle"]) > 200:
-        raise HTTPException(400, "Montage title subtext must be at most 200 characters")
-    if not isinstance(spec.get("titleFontSize"), (int, float)) or not 32 <= spec["titleFontSize"] <= 180:
-        raise HTTPException(400, "Montage title font size must be between 32 and 180")
-    if not isinstance(spec.get("titleSubtitleFontSize"), (int, float)) or not 16 <= spec["titleSubtitleFontSize"] <= 120:
-        raise HTTPException(400, "Montage title subtext font size must be between 16 and 120")
-    if not isinstance(spec.get("titleDuration"), (int, float)) or not 0 <= spec["titleDuration"] <= 10:
-        raise HTTPException(400, "Montage title duration must be between 0 and 10 seconds")
-    duration = spec.get("transitionDuration")
-    if not isinstance(duration, (int, float)) or not 0 <= duration <= 2 or (spec["transition"] != "cut" and duration < 0.1):
-        raise HTTPException(400, "Montage transition duration is invalid")
-    if not isinstance(spec.get("cutColor"), str) or not re.fullmatch(r"#[0-9A-Fa-f]{6}", spec["cutColor"]):
-        raise HTTPException(400, "Montage cut color must be a six-digit hex color")
-    end_page = spec.get("endPage")
-    if not isinstance(end_page, dict) or not isinstance(end_page.get("enabled"), bool):
-        raise HTTPException(400, "Montage end page is invalid")
-    if not all(isinstance(end_page.get(key, ""), str) and len(end_page.get(key, "")) <= 200 for key in ("title", "subtitle")):
-        raise HTTPException(400, "Montage end page text must be at most 200 characters")
-    if not isinstance(end_page.get("fontSize"), (int, float)) or not 32 <= end_page["fontSize"] <= 180:
-        raise HTTPException(400, "Montage end page font size must be between 32 and 180")
-    if not isinstance(end_page.get("subtitleFontSize"), (int, float)) or not 16 <= end_page["subtitleFontSize"] <= 120:
-        raise HTTPException(400, "Montage end page subtext font size must be between 16 and 120")
-    if not isinstance(end_page.get("duration"), (int, float)) or not 0 <= end_page["duration"] <= 10:
-        raise HTTPException(400, "Montage end page duration must be between 0 and 10 seconds")
-    return spec
-
-
 def montage_filename(title: str, job_id: str) -> str:
     stem = re.sub(r"[^A-Za-z0-9._-]+", "-", title).strip(".-")[:80] or "montage"
     return f"{stem}-{job_id}.mp4"
@@ -312,9 +308,9 @@ def montage_duration_seconds(spec: dict) -> float:
     clip_duration += gaps * transition if spec["transition"] == "cut" else -gaps * transition
     total = clip_duration
     if spec["title"]:
-        total += float(spec["titleDuration"]) - 0.5
+        total += MONTAGE_PAGE_DURATION_SECONDS - 0.5
     if spec["endPage"]["enabled"]:
-        total += float(spec["endPage"]["duration"]) - 0.5
+        total += MONTAGE_PAGE_DURATION_SECONDS - 0.5
     return max(0, total)
 
 
@@ -355,12 +351,6 @@ def montage_capabilities():
         return capability_probe
 
 
-def validate_montage_settings(settings: object) -> dict:
-    if not isinstance(settings, dict):
-        raise HTTPException(400, "Preset settings must be an object")
-    return validate_montage_spec({**settings, "clips": [{"id": "preset-a"}, {"id": "preset-b"}]})
-
-
 @app.get("/api/montage-presets")
 def montage_presets():
     connection = db()
@@ -374,7 +364,7 @@ def montage_presets():
 def create_montage_preset(payload: MontagePresetPayload):
     connection = db()
     try:
-        return save_montage_preset(connection, payload.name, validate_montage_settings(payload.settings))
+        return save_montage_preset(connection, payload.name, payload.settings.model_dump())
     except ValueError as error:
         raise HTTPException(400, str(error))
     finally:
@@ -385,7 +375,7 @@ def create_montage_preset(payload: MontagePresetPayload):
 def update_montage_preset(preset_id: int, payload: MontagePresetPayload):
     connection = db()
     try:
-        return save_montage_preset(connection, payload.name, validate_montage_settings(payload.settings), preset_id)
+        return save_montage_preset(connection, payload.name, payload.settings.model_dump(), preset_id)
     except KeyError:
         raise HTTPException(404, "Montage preset not found")
     except ValueError as error:
@@ -422,10 +412,9 @@ def create_montage(payload: MontageRequest, request: Request):
     with job_lock:
         if any(job["status"] in {"queued", "rendering"} for job in jobs.values()):
             raise HTTPException(409, "Another montage export is already running")
-        spec = validate_montage_spec(payload.spec)
-        clips = spec["clips"]
-        ids = [clip.get("id") for clip in clips if isinstance(clip, dict)]
-        if len(ids) != len(clips) or len(set(ids)) != len(ids):
+        spec = payload.spec.model_dump()
+        ids = [clip.id for clip in payload.spec.clips]
+        if len(set(ids)) != len(ids):
             raise HTTPException(400, "Montage clips must be unique catalog IDs")
         # Resolve authoritative catalog URLs; never trust browser paths or metadata.
         authoritative = batch_videos(BatchPayload(ids=ids))["items"]
@@ -474,6 +463,11 @@ def montage_exports():
 
 @app.get("/api/montage-exports/{export_id}/download")
 def download_montage_export(export_id: int):
+    output = montage_export_path(export_id)
+    return FileResponse(output, media_type="video/mp4", filename=output.name)
+
+
+def montage_export_path(export_id: int) -> Path:
     connection = db()
     try:
         entry = montage_export(connection, export_id)
@@ -484,33 +478,20 @@ def download_montage_export(export_id: int):
     output = active_paths().montage_directory / Path(entry["filename"]).name
     if not output.is_file() or active_paths().montage_directory not in output.parents:
         raise HTTPException(404, "Montage file is unavailable")
-    return FileResponse(output, media_type="video/mp4", filename=output.name)
+    return output
 
 
 @app.get("/api/montage-exports/{export_id}/media")
 def stream_montage_export(export_id: int):
-    connection = db()
-    try:
-        entry = montage_export(connection, export_id)
-    except KeyError:
-        raise HTTPException(404, "Montage export not found")
-    finally:
-        connection.close()
-    output = active_paths().montage_directory / Path(entry["filename"]).name
-    if not output.is_file() or active_paths().montage_directory not in output.parents:
-        raise HTTPException(404, "Montage file is unavailable")
-    return FileResponse(output, media_type="video/mp4")
+    return FileResponse(montage_export_path(export_id), media_type="video/mp4")
 
 
 @app.delete("/api/montage-exports/{export_id}")
 def remove_montage_export(export_id: int):
+    output = montage_export_path(export_id)
+    output.unlink(missing_ok=True)
     connection = db()
     try:
-        entry = montage_export(connection, export_id)
-        output = active_paths().montage_directory / Path(entry["filename"]).name
-        if active_paths().montage_directory not in output.parents:
-            raise HTTPException(404, "Montage file is unavailable")
-        output.unlink(missing_ok=True)
         delete_montage_export(connection, export_id)
     except KeyError:
         raise HTTPException(404, "Montage export not found")

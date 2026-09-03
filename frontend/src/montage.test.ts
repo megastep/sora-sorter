@@ -50,7 +50,6 @@ describe('ordered montage selection', () => {
       titleSubtitle: '',
       titleFontSize: 88,
       titleSubtitleFontSize: 36,
-      titleDuration: 3,
       transition: 'crossfade' as const,
       transitionDuration: 0.5,
       cutColor: '#000000',
@@ -60,7 +59,6 @@ describe('ordered montage selection', () => {
         subtitle: '',
         fontSize: 72,
         subtitleFontSize: 30,
-        duration: 3,
       },
     };
 

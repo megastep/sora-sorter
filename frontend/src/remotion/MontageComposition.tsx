@@ -19,6 +19,7 @@ const frames = (seconds: number) => Math.max(1, Math.round(seconds * fps));
 const optionalFrames = (seconds: number) => Math.max(0, Math.round(seconds * fps));
 const pageTransitionFrames = frames(0.5);
 const endBlurFrames = frames(1);
+const pageDurationFrames = frames(3);
 
 function FittedVideo({
   src,
@@ -171,10 +172,10 @@ export function montageDurationInFrames(spec: MontageSpec) {
       ? Math.max(0, spec.clips.length - 1) * optionalFrames(spec.transitionDuration)
       : Math.max(0, spec.clips.length - 1) * frames(spec.transitionDuration);
   return (
-    (spec.title ? frames(spec.titleDuration) : 0) +
+    (spec.title ? pageDurationFrames : 0) +
     clipFrames +
     (spec.transition === 'cut' ? overlaps : -overlaps) +
-    (spec.endPage.enabled ? frames(spec.endPage.duration) : 0) -
+    (spec.endPage.enabled ? pageDurationFrames : 0) -
     (spec.title ? pageTransitionFrames : 0) -
     (spec.endPage.enabled ? pageTransitionFrames : 0)
   );
@@ -192,7 +193,7 @@ export function MontageComposition({ spec }: { spec: MontageSpec }) {
   return (
     <AbsoluteFill style={{ width, height, background: '#000' }}>
       {spec.title && (
-        <Sequence durationInFrames={frames(spec.titleDuration)}>
+        <Sequence durationInFrames={pageDurationFrames}>
           <TitleCard
             src={spec.clips[0].media_url}
             title={spec.title}
@@ -200,7 +201,7 @@ export function MontageComposition({ spec }: { spec: MontageSpec }) {
             fontSize={spec.titleFontSize}
             subtitleFontSize={spec.titleSubtitleFontSize}
             freezeFrame={0}
-            durationInFrames={frames(spec.titleDuration)}
+            durationInFrames={pageDurationFrames}
             reveal
             zoom
             blurIn={false}
@@ -208,7 +209,7 @@ export function MontageComposition({ spec }: { spec: MontageSpec }) {
           />
         </Sequence>
       )}
-      <Sequence from={spec.title ? frames(spec.titleDuration) - pageTransitionFrames : 0}>
+      <Sequence from={spec.title ? pageDurationFrames - pageTransitionFrames : 0}>
         <TransitionSeries>
           {spec.clips.map((clip, index) => (
             <Fragment key={clip.id}>
@@ -246,7 +247,7 @@ export function MontageComposition({ spec }: { spec: MontageSpec }) {
             montageDurationInFrames({ ...spec, endPage: { ...spec.endPage, enabled: false } }) -
             pageTransitionFrames
           }
-          durationInFrames={frames(spec.endPage.duration)}
+          durationInFrames={pageDurationFrames}
         >
           <TitleCard
             src={spec.clips.at(-1)!.media_url}
@@ -255,7 +256,7 @@ export function MontageComposition({ spec }: { spec: MontageSpec }) {
             fontSize={spec.endPage.fontSize}
             subtitleFontSize={spec.endPage.subtitleFontSize}
             freezeFrame={Math.max(0, frames(spec.clips.at(-1)!.duration_seconds) - 1)}
-            durationInFrames={frames(spec.endPage.duration)}
+            durationInFrames={pageDurationFrames}
             reveal={false}
             zoom
             blurIn

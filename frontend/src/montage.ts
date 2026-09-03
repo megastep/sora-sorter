@@ -20,7 +20,6 @@ export type MontageSpec = {
   titleSubtitle: string;
   titleFontSize: number;
   titleSubtitleFontSize: number;
-  titleDuration: number;
   transition: TransitionType;
   transitionDuration: number;
   cutColor: string;
@@ -30,7 +29,6 @@ export type MontageSpec = {
     subtitle: string;
     fontSize: number;
     subtitleFontSize: number;
-    duration: number;
   };
 };
 

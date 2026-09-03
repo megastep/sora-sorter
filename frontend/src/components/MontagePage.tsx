@@ -25,12 +25,7 @@ import {
   type RenderJob,
   type MontagePreset,
 } from '../api';
-import {
-  dimensionsFor,
-  type MontageSettings,
-  type MontageSpec,
-  type OutputFormat,
-} from '../montage';
+import { dimensionsFor, type MontageSettings, type MontageSpec } from '../montage';
 import {
   MontageComposition,
   montageDurationInFrames,
@@ -44,11 +39,7 @@ const formatDuration = (totalFrames: number) => {
   return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
 };
 
-type EditorState = Omit<MontageSettings, 'titleDuration' | 'endPage'> & {
-  endPage: MontageSettings['endPage'];
-};
-
-const initialEditorState: EditorState = {
+const initialEditorState: MontageSettings = {
   format: 'landscape',
   fillMismatchedOrientation: true,
   title: '',
@@ -64,11 +55,13 @@ const initialEditorState: EditorState = {
     subtitle: '',
     fontSize: 72,
     subtitleFontSize: 30,
-    duration: 3,
   },
 };
 
-const editorReducer = (state: EditorState, patch: Partial<EditorState>): EditorState => ({
+const editorReducer = (
+  state: MontageSettings,
+  patch: Partial<MontageSettings>,
+): MontageSettings => ({
   ...state,
   ...patch,
   endPage: patch.endPage ?? state.endPage,
@@ -88,82 +81,22 @@ export function MontagePage({
 }) {
   const [clips, setClips] = useState<MontageSpec['clips']>([]);
   const [editor, dispatchEditor] = useReducer(editorReducer, initialEditorState);
-  const {
-    format,
-    fillMismatchedOrientation,
-    title,
-    titleSubtitle,
-    titleFontSize,
-    titleSubtitleFontSize,
-    transition,
-    transitionDuration,
-    cutColor,
-  } = editor;
-  const {
-    enabled: endEnabled,
-    title: endTitle,
-    subtitle: endSubtitle,
-    fontSize: endFontSize,
-    subtitleFontSize: endSubtitleFontSize,
-  } = editor.endPage;
-  const setFormat = (value: OutputFormat) => dispatchEditor({ format: value });
-  const setTitle = (value: string) => dispatchEditor({ title: value });
   const [presets, setPresets] = useState<MontagePreset[]>([]);
   const [presetName, setPresetName] = useState('');
   const [activePresetId, setActivePresetId] = useState<number | null>(null);
   const [job, setJob] = useState<RenderJob | null>(null);
   const [accelerationReason, setAccelerationReason] = useState<string | null>(null);
-  const selectedIdsKey = ids.join(',');
-  const selectedIds = useMemo(
-    () => (selectedIdsKey ? selectedIdsKey.split(',') : []),
-    [selectedIdsKey],
-  );
   useEffect(() => {
     // fallow-ignore-next-line complexity -- initializes title and orientation together from the selected first clip.
-    void fetchMontageClips(selectedIds).then((items) => {
+    void fetchMontageClips(ids).then((items) => {
       setClips(items);
-      setTitle(items[0]?.title ?? '');
-      setFormat(items[0]?.orientation === 'portrait' ? 'portrait' : 'landscape');
+      dispatchEditor({
+        title: items[0]?.title ?? '',
+        format: items[0]?.orientation === 'portrait' ? 'portrait' : 'landscape',
+      });
     });
-  }, [selectedIds]);
-  const settings = useMemo<MontageSettings>(
-    () => ({
-      format,
-      fillMismatchedOrientation,
-      title,
-      titleSubtitle,
-      titleFontSize,
-      titleSubtitleFontSize,
-      titleDuration: 3,
-      transition,
-      transitionDuration,
-      cutColor,
-      endPage: {
-        enabled: endEnabled,
-        title: endTitle,
-        subtitle: endSubtitle,
-        fontSize: endFontSize,
-        subtitleFontSize: endSubtitleFontSize,
-        duration: 3,
-      },
-    }),
-    [
-      format,
-      fillMismatchedOrientation,
-      title,
-      titleSubtitle,
-      titleFontSize,
-      titleSubtitleFontSize,
-      transition,
-      transitionDuration,
-      cutColor,
-      endEnabled,
-      endTitle,
-      endSubtitle,
-      endFontSize,
-      endSubtitleFontSize,
-    ],
-  );
+  }, [ids]);
+  const settings = editor;
   const spec = useMemo<MontageSpec>(() => ({ clips, ...settings }), [clips, settings]);
   const applyPreset = (preset: MontagePreset) => {
     const next = preset.settings;
@@ -186,7 +119,7 @@ export function MontagePage({
     setActivePresetId(saved.id);
     await refreshPresets();
   };
-  const dimensions = dimensionsFor(format);
+  const dimensions = dimensionsFor(settings.format);
   const totalFrames = montageDurationInFrames(spec);
   useEffect(() => {
     if (!job || !['queued', 'rendering'].includes(job.status)) return;

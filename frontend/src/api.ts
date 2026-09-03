@@ -4,40 +4,44 @@ import { type MontageClip, type MontageSettings, type MontageSpec } from './mont
 export type VideoPage = { items: Video[]; total: number };
 export type KeywordSummary = { keyword: string; count: number };
 
-export async function fetchVideoPage(filters: Filters, offset: number): Promise<VideoPage> {
+async function request<T>(path: string, error: string, init?: RequestInit): Promise<T> {
+  const response = init ? await fetch(path, init) : await fetch(path);
+  if (!response.ok) throw new Error(`${error} (${response.status})`);
+  return response.json() as Promise<T>;
+}
+
+const items = async <T>(path: string, error: string, init?: RequestInit) =>
+  (await request<{ items: T[] }>(path, error, init)).items;
+
+const jsonRequest = (method: 'POST' | 'PUT', body: unknown): RequestInit => ({
+  method,
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+
+export const fetchVideoPage = (filters: Filters, offset: number): Promise<VideoPage> => {
   const params = new URLSearchParams({ ...filters, limit: '48', offset: String(offset) });
-  const response = await fetch(`${API}/videos?${params}`);
-  if (!response.ok) throw new Error(`Could not load catalog (${response.status})`);
-  return response.json() as Promise<VideoPage>;
-}
+  return request(`${API}/videos?${params}`, 'Could not load catalog');
+};
 
-export async function reimportCatalog(): Promise<void> {
-  const response = await fetch(`${API}/import`, { method: 'POST' });
-  if (!response.ok) throw new Error(`Could not reimport catalog (${response.status})`);
-}
+export const reimportCatalog = () =>
+  request<void>(`${API}/import`, 'Could not reimport catalog', { method: 'POST' });
 
-export async function fetchKeywordSummaries(): Promise<KeywordSummary[]> {
-  const response = await fetch(`${API}/keywords`);
-  if (!response.ok) throw new Error(`Could not load keywords (${response.status})`);
-  const payload = (await response.json()) as { items: KeywordSummary[] };
-  return payload.items;
-}
+export const fetchKeywordSummaries = () =>
+  items<KeywordSummary>(`${API}/keywords`, 'Could not load keywords');
 
-export async function fetchSelectionIds(filters: Filters): Promise<string[]> {
-  const response = await fetch(`${API}/videos/selection?${new URLSearchParams(filters)}`);
-  if (!response.ok) throw new Error(`Could not select videos (${response.status})`);
-  return ((await response.json()) as { items: string[] }).items;
-}
+export const fetchSelectionIds = (filters: Filters) =>
+  items<string>(
+    `${API}/videos/selection?${new URLSearchParams(filters)}`,
+    'Could not select videos',
+  );
 
-export async function fetchMontageClips(ids: string[]): Promise<MontageClip[]> {
-  const response = await fetch(`${API}/videos/batch`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids }),
-  });
-  if (!response.ok) throw new Error(`Could not load montage clips (${response.status})`);
-  return ((await response.json()) as { items: MontageClip[] }).items;
-}
+export const fetchMontageClips = (ids: string[]) =>
+  items<MontageClip>(
+    `${API}/videos/batch`,
+    'Could not load montage clips',
+    jsonRequest('POST', { ids }),
+  );
 
 export type RenderJob = {
   id: string;
@@ -58,82 +62,64 @@ export type MontagePreset = {
   id: number;
   name: string;
   settings: MontageSettings;
-  last_used_at: string;
 };
 
 export type MontageExport = {
   id: number;
   title: string;
-  filename: string;
   duration_seconds: number | null;
   generated_at: string;
 };
 
-export async function fetchMontageExports(): Promise<MontageExport[]> {
-  const response = await fetch(`${API}/montage-exports`);
-  if (!response.ok) throw new Error(`Could not load montage exports (${response.status})`);
-  return ((await response.json()) as { items: MontageExport[] }).items;
-}
+export const fetchMontageExports = () =>
+  items<MontageExport>(`${API}/montage-exports`, 'Could not load montage exports');
 
-export async function deleteMontageExport(exportId: number): Promise<void> {
-  const response = await fetch(`${API}/montage-exports/${exportId}`, { method: 'DELETE' });
-  if (!response.ok) throw new Error(`Could not delete montage export (${response.status})`);
-}
+export const deleteMontageExport = (exportId: number) =>
+  request<void>(`${API}/montage-exports/${exportId}`, 'Could not delete montage export', {
+    method: 'DELETE',
+  });
 
-export async function fetchMontagePresets(): Promise<MontagePreset[]> {
-  const response = await fetch(`${API}/montage-presets`);
-  if (!response.ok) throw new Error(`Could not load montage presets (${response.status})`);
-  return ((await response.json()) as { items: MontagePreset[] }).items;
-}
+export const fetchMontagePresets = () =>
+  items<MontagePreset>(`${API}/montage-presets`, 'Could not load montage presets');
 
 export async function saveMontagePreset(
   name: string,
   settings: MontageSettings,
   presetId?: number,
 ): Promise<MontagePreset> {
-  const response = await fetch(
+  return request<MontagePreset>(
     `${API}/montage-presets${presetId === undefined ? '' : `/${presetId}`}`,
-    {
-      method: presetId === undefined ? 'POST' : 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, settings }),
-    },
+    'Could not save montage preset',
+    jsonRequest(presetId === undefined ? 'POST' : 'PUT', { name, settings }),
   );
-  if (!response.ok) throw new Error(`Could not save montage preset (${response.status})`);
-  return response.json() as Promise<MontagePreset>;
 }
 
-export async function markMontagePresetUsed(presetId: number): Promise<void> {
-  const response = await fetch(`${API}/montage-presets/${presetId}/use`, { method: 'POST' });
-  if (!response.ok) throw new Error(`Could not use montage preset (${response.status})`);
-}
+export const markMontagePresetUsed = (presetId: number) =>
+  request<void>(`${API}/montage-presets/${presetId}/use`, 'Could not use montage preset', {
+    method: 'POST',
+  });
 
-export async function deleteMontagePreset(presetId: number): Promise<void> {
-  const response = await fetch(`${API}/montage-presets/${presetId}`, { method: 'DELETE' });
-  if (!response.ok) throw new Error(`Could not delete montage preset (${response.status})`);
-}
+export const deleteMontagePreset = (presetId: number) =>
+  request<void>(`${API}/montage-presets/${presetId}`, 'Could not delete montage preset', {
+    method: 'DELETE',
+  });
 
-export async function fetchMontageCapabilities(): Promise<MontageCapabilities> {
-  const response = await fetch(`${API}/montages/capabilities`);
-  if (!response.ok) throw new Error(`Could not verify hardware acceleration (${response.status})`);
-  return response.json() as Promise<MontageCapabilities>;
-}
+export const fetchMontageCapabilities = () =>
+  request<MontageCapabilities>(
+    `${API}/montages/capabilities`,
+    'Could not verify hardware acceleration',
+  );
 
 export async function renderMontage(
   spec: MontageSpec,
   softwareFallback = false,
 ): Promise<RenderJob> {
-  const response = await fetch(`${API}/montages`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ spec, software_fallback: softwareFallback }),
-  });
-  if (!response.ok) throw new Error(`Could not start export (${response.status})`);
-  return response.json() as Promise<RenderJob>;
+  return request<RenderJob>(
+    `${API}/montages`,
+    'Could not start export',
+    jsonRequest('POST', { spec, software_fallback: softwareFallback }),
+  );
 }
 
-export async function fetchRenderJob(id: string): Promise<RenderJob> {
-  const response = await fetch(`${API}/montages/${id}`);
-  if (!response.ok) throw new Error(`Could not check export (${response.status})`);
-  return response.json() as Promise<RenderJob>;
-}
+export const fetchRenderJob = (id: string) =>
+  request<RenderJob>(`${API}/montages/${id}`, 'Could not check export');

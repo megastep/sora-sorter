@@ -40,7 +40,6 @@ const Root = () => (
           titleSubtitle: '',
           titleFontSize: 88,
           titleSubtitleFontSize: 36,
-          titleDuration: 3,
           transition: 'cut',
           transitionDuration: 0,
           cutColor: '#000000',
@@ -50,7 +49,6 @@ const Root = () => (
             subtitle: '',
             fontSize: 72,
             subtitleFontSize: 30,
-            duration: 3,
           },
         },
       }}

@@ -41,6 +41,7 @@ Video library
 Sora Sorter repository
 ├── app.py                  local FastAPI server and configuration
 ├── catalog_db.py           SQLite importer, search, and metadata updates
+├── scripts/process_videos.py  optional local video analysis pipeline
 └── frontend/               React + Vite gallery
 ```
 
@@ -54,7 +55,10 @@ configuration options below.
 - [uv](https://docs.astral.sh/uv/), for the local Python environment
 - Node.js and [pnpm](https://pnpm.io/), for the React frontend
 - [FFmpeg](https://ffmpeg.org/), to generate poster frames the first time each
-  clip is displayed
+  clip is displayed and to prepare audio and representative frames for analysis
+- Optional for analysis: Apple Silicon with
+  [MLX Whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper)
+  support, and an OpenAI API key for visual descriptions and filenames
 
 The app has been developed for a local macOS workflow, but it uses standard
 Python, SQLite, and Node tooling.
@@ -94,6 +98,51 @@ Python, SQLite, and Node tooling.
 On startup, the server re-imports JSON files from
 `video_catalog_json/`. Later, use **Import / Reimport** in the app whenever
 new analysis records arrive.
+
+## Analyze a video library
+
+`scripts/process_videos.py` creates the per-video JSON that the catalog
+imports. It reads the same `VIDEO_CATALOG_LIBRARY_ROOT` from `.env` as the
+server, or accepts `--root` for a one-off library. The inline `uv` metadata
+installs its Python dependencies on first use.
+
+Start with a small, non-destructive pilot. This performs the analysis and
+writes JSON, but does not rename or move any videos:
+
+```sh
+uv run scripts/process_videos.py --all --limit 4 --jobs 4 --dry-run
+```
+
+Once the metadata looks right, analyze and organize the rest. A generated
+descriptive name is used only with `--rename`; successful clips then move to
+`processed/`.
+
+```sh
+uv run scripts/process_videos.py --all --jobs 4 --rename
+```
+
+The processor transcribes audio locally with MLX Whisper, recording language
+and no-speech states separately. It sends four representative frames and the
+transcript to the configured OpenAI vision model to generate a summary,
+keywords, visible text, content flags, probabilistic public-figure/fictional-
+character references, and a filename stem. It reads `OPENAI_API_KEY` first,
+then falls back to `~/.config/openai/api.key`.
+
+Run the processor without visual analysis (and therefore without API usage)
+with `--no-vision`. In that mode, renaming is skipped unless you deliberately
+add `--allow-transcript-filename`.
+
+Exact byte-identical copies can be found and moved safely to `duplicates/`:
+
+```sh
+uv run scripts/process_videos.py --deduplicate --dry-run
+uv run scripts/process_videos.py --deduplicate
+```
+
+The processor never overwrites a video. It creates one JSON record per
+SHA-256 checksum, ignores AppleDouble (`._*`) files, writes JSON atomically,
+and adds a hash/counter to avoid filename collisions. See the full option list
+with `uv run scripts/process_videos.py --help`.
 
 ## Configuration
 
@@ -205,6 +254,5 @@ pnpm --dir frontend format
 ## Scope
 
 Sora Sorter is a single-user, local workflow tool. It does not provide hosted
-storage, user authentication, remote sharing, or automated video analysis.
-Use the analyzer that produces your per-video JSON records before importing
-them here.
+storage, user authentication, or remote sharing. Its included analyzer is an
+optional local workflow; review its generated metadata before editorial use.

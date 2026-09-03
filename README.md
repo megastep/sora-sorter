@@ -175,11 +175,16 @@ Useful checks:
 
 ```sh
 cd frontend
+pnpm run doctor
 pnpm lint
 pnpm format:check
 pnpm exec tsc --noEmit
 pnpm build
 ```
+
+`pnpm run doctor` is the React Doctor quality gate. It must report no findings
+before a change is merged. Use `run` deliberately: `pnpm doctor` invokes
+pnpm's unrelated built-in diagnostic command.
 
 To apply the repository’s formatting rules:
 

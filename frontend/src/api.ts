@@ -6,7 +6,17 @@ export type KeywordSummary = { keyword: string; count: number };
 
 async function request<T>(path: string, error: string, init?: RequestInit): Promise<T> {
   const response = init ? await fetch(path, init) : await fetch(path);
-  if (!response.ok) throw new Error(`${error} (${response.status})`);
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => null);
+    const detail =
+      payload &&
+      typeof payload === 'object' &&
+      'detail' in payload &&
+      typeof payload.detail === 'string'
+        ? payload.detail
+        : null;
+    throw new Error(`${error} (${response.status})${detail ? `: ${detail}` : ''}`);
+  }
   return response.json() as Promise<T>;
 }
 

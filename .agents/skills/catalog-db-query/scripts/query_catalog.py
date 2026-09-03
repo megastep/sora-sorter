@@ -282,7 +282,11 @@ def download_montage(args: argparse.Namespace, job_id: str) -> Path:
     try:
         with urlopen(request, timeout=60) as response, partial.open("wb") as destination:
             shutil.copyfileobj(response, destination)
-        partial.replace(output)
+        if args.force:
+            partial.replace(output)
+        else:
+            os.link(partial, output)
+            partial.unlink()
     except HTTPError as error:
         partial.unlink(missing_ok=True)
         raise ValueError(f"Could not download montage job {job_id}: HTTP {error.code}") from None

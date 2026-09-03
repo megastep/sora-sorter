@@ -341,8 +341,9 @@ def _render_job(job_id: str, request_path: Path) -> None:
             job = read_job(job_id)
             if not job:
                 return
-            connection = db()
+            connection = None
             try:
+                connection = db()
                 record_montage_export(
                     connection,
                     job_id,
@@ -361,7 +362,8 @@ def _render_job(job_id: str, request_path: Path) -> None:
             else:
                 update_job(job_id, status="completed", progress=1, stage="completed")
             finally:
-                connection.close()
+                if connection is not None:
+                    connection.close()
     finally:
         request_path.unlink(missing_ok=True)
 

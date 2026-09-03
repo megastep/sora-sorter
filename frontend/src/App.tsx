@@ -46,7 +46,7 @@ export function App() {
           setMontageSelection={setMontageSelection}
           colorMode={colorMode}
           onMontage={() => navigate('/montage')}
-          onExports={() => navigate('/montages')}
+          onExports={() => navigate('/montages', { state: { backTo: '/' } })}
           onToggleColorMode={() => setColorMode((mode) => (mode === 'dark' ? 'light' : 'dark'))}
           active={location.pathname === '/'}
         />
@@ -60,7 +60,7 @@ export function App() {
         />
       )}
       {location.pathname === '/montages' && (
-        <MontageExportsPage onBack={() => navigate('/montage')} />
+        <MontageExportsPage onBack={() => navigate(location.state?.backTo ?? '/montage')} />
       )}
     </ThemeProvider>
   );

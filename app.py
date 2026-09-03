@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import subprocess
@@ -373,8 +374,8 @@ def montage_filename(title: str, job_id: str) -> str:
 def montage_duration_seconds(spec: dict) -> float:
     clips = spec["clips"]
     fps = 30
-    frame_count = lambda seconds: max(1, round(float(seconds) * fps))
-    optional_frame_count = lambda seconds: max(0, round(float(seconds) * fps))
+    frame_count = lambda seconds: max(1, math.floor(float(seconds) * fps + 0.5))
+    optional_frame_count = lambda seconds: max(0, math.floor(float(seconds) * fps + 0.5))
     clip_duration = sum(frame_count(clip.get("duration_seconds") or 0) for clip in clips)
     gaps = max(0, len(clips) - 1)
     transition = optional_frame_count(spec["transitionDuration"])
@@ -390,8 +391,11 @@ def montage_duration_seconds(spec: dict) -> float:
 def validate_montage_transition(spec: dict) -> None:
     if spec["transition"] == "cut":
         return
-    duration = float(spec["transitionDuration"])
-    if any(float(clip["duration_seconds"]) <= duration for clip in spec["clips"]):
+    duration_frames = max(1, math.floor(float(spec["transitionDuration"]) * 30 + 0.5))
+    if any(
+        max(1, math.floor(float(clip["duration_seconds"]) * 30 + 0.5)) <= duration_frames
+        for clip in spec["clips"]
+    ):
         raise HTTPException(400, "Transition duration must be shorter than every selected clip.")
 
 
@@ -584,8 +588,6 @@ def stream_montage_export(export_id: int):
 def remove_montage_export(export_id: int):
     entry = montage_export_entry(export_id)
     output = montage_export_file_path(entry)
-    if output.is_file():
-        output.unlink()
     connection = db()
     try:
         delete_montage_export(connection, export_id)
@@ -593,6 +595,7 @@ def remove_montage_export(export_id: int):
         raise HTTPException(404, "Montage export not found")
     finally:
         connection.close()
+    output.unlink(missing_ok=True)
     return {"deleted": True}
 
 

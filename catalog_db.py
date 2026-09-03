@@ -167,7 +167,8 @@ def save_montage_preset(db: sqlite3.Connection, name: str, settings: dict[str, A
     if not 1 <= len(cleaned) <= 80:
         raise ValueError("Preset name must be between 1 and 80 characters")
     try:
-        with db:
+        db.execute("BEGIN IMMEDIATE")
+        try:
             use_order = _next_preset_use_order(db)
             if preset_id is None:
                 cursor = db.execute(
@@ -182,6 +183,10 @@ def save_montage_preset(db: sqlite3.Connection, name: str, settings: dict[str, A
                 )
                 if not cursor.rowcount:
                     raise KeyError(preset_id)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
     except sqlite3.IntegrityError as error:
         if "montage_presets.name" in str(error):
             raise ValueError("A montage preset with this name already exists") from None

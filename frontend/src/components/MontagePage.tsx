@@ -89,16 +89,24 @@ export function MontagePage({
   const [exportError, setExportError] = useState<string | null>(null);
   const [presetError, setPresetError] = useState<string | null>(null);
   const [clipsReady, setClipsReady] = useState(false);
+  const [clipsError, setClipsError] = useState<string | null>(null);
   const [presetsReady, setPresetsReady] = useState(false);
   const hasInitializedEditor = useRef(false);
   useEffect(() => {
     let active = true;
     // fallow-ignore-next-line complexity -- initializes title and orientation together from the selected first clip.
-    void fetchMontageClips(ids).then((items) => {
-      if (!active) return;
-      setClips(items);
-      setClipsReady(true);
-    });
+    void fetchMontageClips(ids)
+      .then((items) => {
+        if (!active) return;
+        setClips(items);
+        setClipsError(null);
+        setClipsReady(true);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setClipsError(error instanceof Error ? error.message : 'Could not load selected clips.');
+        setClipsReady(true);
+      });
     return () => {
       active = false;
     };
@@ -155,7 +163,11 @@ export function MontagePage({
   const totalFrames = montageDurationInFrames(spec);
   const previewSpec = useMemo<MontageSpec>(() => {
     const shortestClip = Math.min(...clips.map((clip) => clip.duration_seconds));
-    if (spec.transition !== 'cut' && shortestClip <= spec.transitionDuration) {
+    if (
+      spec.transition !== 'cut' &&
+      Math.max(1, Math.round(shortestClip * montageFps)) <=
+        Math.max(1, Math.round(spec.transitionDuration * montageFps))
+    ) {
       return { ...spec, transition: 'cut', transitionDuration: 0 };
     }
     return spec;
@@ -191,8 +203,8 @@ export function MontagePage({
           Back to library
         </Button>
         <Button onClick={onExports}>Generated videos</Button>
-        <Typography sx={{ mt: 2 }}>
-          Choose at least two available clips to create a montage.
+        <Typography sx={{ mt: 2 }} color={clipsError ? 'error.main' : undefined}>
+          {clipsError ?? 'Choose at least two available clips to create a montage.'}
         </Typography>
       </Box>
     );

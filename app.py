@@ -372,16 +372,19 @@ def montage_filename(title: str, job_id: str) -> str:
 
 def montage_duration_seconds(spec: dict) -> float:
     clips = spec["clips"]
-    clip_duration = sum(float(clip.get("duration_seconds") or 0) for clip in clips)
+    fps = 30
+    frame_count = lambda seconds: max(1, round(float(seconds) * fps))
+    optional_frame_count = lambda seconds: max(0, round(float(seconds) * fps))
+    clip_duration = sum(frame_count(clip.get("duration_seconds") or 0) for clip in clips)
     gaps = max(0, len(clips) - 1)
-    transition = float(spec["transitionDuration"])
-    clip_duration += gaps * transition if spec["transition"] == "cut" else -gaps * transition
+    transition = optional_frame_count(spec["transitionDuration"])
+    clip_duration += gaps * transition if spec["transition"] == "cut" else -gaps * max(1, transition)
     total = clip_duration
     if spec["title"]:
-        total += MONTAGE_PAGE_DURATION_SECONDS - 0.5
+        total += frame_count(MONTAGE_PAGE_DURATION_SECONDS) - frame_count(0.5)
     if spec["endPage"]["enabled"]:
-        total += MONTAGE_PAGE_DURATION_SECONDS - 0.5
-    return max(0, total)
+        total += frame_count(MONTAGE_PAGE_DURATION_SECONDS) - frame_count(0.5)
+    return max(0, total) / fps
 
 
 def validate_montage_transition(spec: dict) -> None:

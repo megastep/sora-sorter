@@ -207,6 +207,8 @@ def api_request(
         raise ValueError(f"Catalog server returned HTTP {error.code}: {detail or error.reason}") from None
     except URLError as error:
         raise ValueError(f"Could not reach catalog server at {server}: {error.reason}") from None
+    except TimeoutError:
+        raise ValueError(f"Catalog server at {server} timed out") from None
 
 
 def list_presets(args: argparse.Namespace) -> dict[str, Any]:

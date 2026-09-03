@@ -153,6 +153,14 @@ export function MontagePage({
   };
   const dimensions = dimensionsFor(settings.format);
   const totalFrames = montageDurationInFrames(spec);
+  const previewSpec = useMemo<MontageSpec>(() => {
+    const shortestClip = Math.min(...clips.map((clip) => clip.duration_seconds));
+    if (spec.transition !== 'cut' && shortestClip <= spec.transitionDuration) {
+      return { ...spec, transition: 'cut', transitionDuration: 0 };
+    }
+    return spec;
+  }, [clips, spec]);
+  const previewFrames = montageDurationInFrames(previewSpec);
   useEffect(() => {
     if (!job || !['queued', 'rendering'].includes(job.status)) return;
     const timer = window.setInterval(() => void fetchRenderJob(job.id).then(setJob), 900);
@@ -192,11 +200,11 @@ export function MontagePage({
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <Stack
         component="header"
-        direction="row"
+        direction={{ xs: 'column', sm: 'row' }}
         sx={{
-          alignItems: 'center',
+          alignItems: { xs: 'stretch', sm: 'center' },
           gap: 2,
-          px: 3,
+          px: { xs: 2, sm: 3 },
           py: 1.5,
           borderBottom: 1,
           borderColor: 'divider',
@@ -206,7 +214,7 @@ export function MontagePage({
         <Button startIcon={<ArrowBackRounded />} onClick={onBack}>
           Back to library
         </Button>
-        <Box sx={{ mr: 'auto' }}>
+        <Box sx={{ mr: { sm: 'auto' } }}>
           <Typography variant="h6">Montage</Typography>
           <Typography variant="caption" color="text.secondary">
             Total length: {formatDuration(totalFrames)}
@@ -239,14 +247,19 @@ export function MontagePage({
           <Paper sx={{ p: 1, bgcolor: 'common.black' }}>
             <Player
               component={MontageComposition}
-              inputProps={{ spec }}
-              durationInFrames={totalFrames}
+              inputProps={{ spec: previewSpec }}
+              durationInFrames={previewFrames}
               compositionWidth={dimensions.width}
               compositionHeight={dimensions.height}
               fps={montageFps}
               controls
               style={{ width: '100%', aspectRatio: `${dimensions.width}/${dimensions.height}` }}
             />
+            {previewSpec !== spec && (
+              <Typography color="warning.main" variant="caption">
+                Preview uses cuts because the selected transition is longer than a clip.
+              </Typography>
+            )}
           </Paper>
           <MontageTimeline
             clips={clips}

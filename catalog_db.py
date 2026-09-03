@@ -190,13 +190,18 @@ def save_montage_preset(db: sqlite3.Connection, name: str, settings: dict[str, A
 
 
 def use_montage_preset(db: sqlite3.Connection, preset_id: int) -> None:
-    with db:
+    try:
+        db.execute("BEGIN IMMEDIATE")
         cursor = db.execute(
             "UPDATE montage_presets SET last_used_at=CURRENT_TIMESTAMP, last_used_order=? WHERE id=?",
             (_next_preset_use_order(db), preset_id),
         )
         if not cursor.rowcount:
             raise KeyError(preset_id)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
 
 def delete_montage_preset(db: sqlite3.Connection, preset_id: int) -> None:

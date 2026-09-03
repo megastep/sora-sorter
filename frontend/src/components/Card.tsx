@@ -7,9 +7,11 @@ import {
   Checkbox,
   Chip,
   IconButton,
+  Rating,
   Stack,
   Typography,
 } from '@mui/material';
+import BookmarkRounded from '@mui/icons-material/BookmarkRounded';
 import PlayArrowRounded from '@mui/icons-material/PlayArrowRounded';
 import { alpha } from '@mui/material/styles';
 import { API, type Video } from '../catalog';
@@ -163,14 +165,27 @@ export function Card({
               sx={{ flexShrink: 0 }}
             />
           </Stack>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            noWrap
-            sx={{ display: 'block', mt: 0.5 }}
-          >
-            {item.language || 'unknown'} · {item.review_status}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minHeight: 20, mt: 0.5 }}>
+            {item.rating !== null && (
+              <Rating
+                value={item.rating}
+                readOnly
+                size="small"
+                aria-label={`${item.rating} out of 5 stars`}
+                sx={{ color: 'primary.main', fontSize: '1rem' }}
+              />
+            )}
+            {item.favorite && (
+              <Box
+                component="span"
+                aria-label="Favorite"
+                title="Favorite"
+                sx={{ display: 'inline-flex', color: 'primary.main' }}
+              >
+                <BookmarkRounded fontSize="small" />
+              </Box>
+            )}
+          </Box>
         </CardContent>
       </CardActionArea>
     </MuiCard>

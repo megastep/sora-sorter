@@ -73,7 +73,7 @@ class MontageCliTests(unittest.TestCase):
         self.capability = {"accelerated": True}
         requests = self.requests
         capability = self.capability
-        preset = {
+        self.preset = {
             "id": 7,
             "name": "Social",
             "last_used_at": "2026-09-03 12:00:00",
@@ -95,6 +95,7 @@ class MontageCliTests(unittest.TestCase):
                 },
             },
         }
+        preset = self.preset
 
         class Handler(BaseHTTPRequestHandler):
             def reply(self, payload: dict, status: int = 200) -> None:
@@ -207,6 +208,14 @@ class MontageCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("at least two unique video IDs", result.stderr)
         self.assertFalse(any(path == "/api/montages" for _, path, _ in self.requests))
+
+    def test_resolves_a_numeric_preset_name(self) -> None:
+        self.preset["name"] = "2026"
+
+        result = self.run_cli("generate", "video-a", "video-b", "--preset", "2026", "--no-wait")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["preset"]["name"], "2026")
 
     def test_requires_explicit_software_fallback_when_acceleration_is_unavailable(self) -> None:
         self.capability.update(accelerated=False, reason="No hardware encoder")

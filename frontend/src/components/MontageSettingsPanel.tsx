@@ -30,6 +30,7 @@ type Props = {
   onChange: (patch: Partial<MontageSettings>) => void;
   onPresetNameChange: (name: string) => void;
   onSelectPreset: (preset: MontagePreset) => void;
+  onClearPreset: () => void;
   onSavePreset: (presetId?: number) => void;
   onDeletePreset: () => void;
   onSoftwareFallback: () => void;
@@ -57,6 +58,10 @@ export function MontageSettingsPanel(props: Props) {
                   label="Preset"
                   value={activePresetId ?? ''}
                   onChange={(event) => {
+                    if (!event.target.value) {
+                      props.onClearPreset();
+                      return;
+                    }
                     const preset = presets.find((item) => item.id === Number(event.target.value));
                     if (preset) props.onSelectPreset(preset);
                   }}

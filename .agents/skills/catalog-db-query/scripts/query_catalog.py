@@ -233,10 +233,12 @@ def resolve_preset(args: argparse.Namespace) -> dict[str, Any]:
         preset
         for preset in presets
         if (preset_id is not None and preset["id"] == preset_id)
-        or (preset_id is None and preset["name"].casefold() == args.preset.casefold())
+        or preset["name"].casefold() == args.preset.casefold()
     ]
     if not matches:
         raise ValueError(f"Montage preset not found: {args.preset}")
+    if len(matches) > 1:
+        raise ValueError(f"Montage preset is ambiguous: {args.preset}")
     return matches[0]
 
 

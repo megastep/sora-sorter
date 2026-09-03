@@ -12,7 +12,7 @@ import {
   Typography,
 } from '@mui/material';
 import { Player } from '@remotion/player';
-import { useEffect, useMemo, useReducer, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   fetchMontageCapabilities,
   fetchMontageClips,
@@ -86,15 +86,24 @@ export function MontagePage({
   const [activePresetId, setActivePresetId] = useState<number | null>(null);
   const [job, setJob] = useState<RenderJob | null>(null);
   const [accelerationReason, setAccelerationReason] = useState<string | null>(null);
+  const hasInitializedFromClips = useRef(false);
   useEffect(() => {
+    let active = true;
     // fallow-ignore-next-line complexity -- initializes title and orientation together from the selected first clip.
     void fetchMontageClips(ids).then((items) => {
+      if (!active) return;
       setClips(items);
-      dispatchEditor({
-        title: items[0]?.title ?? '',
-        format: items[0]?.orientation === 'portrait' ? 'portrait' : 'landscape',
-      });
+      if (!hasInitializedFromClips.current) {
+        hasInitializedFromClips.current = true;
+        dispatchEditor({
+          title: items[0]?.title ?? '',
+          format: items[0]?.orientation === 'portrait' ? 'portrait' : 'landscape',
+        });
+      }
     });
+    return () => {
+      active = false;
+    };
   }, [ids]);
   const settings = editor;
   const spec = useMemo<MontageSpec>(() => ({ clips, ...settings }), [clips, settings]);
@@ -229,6 +238,10 @@ export function MontagePage({
           onSelectPreset={(preset) => {
             applyPreset(preset);
             void markMontagePresetUsed(preset.id).then(refreshPresets);
+          }}
+          onClearPreset={() => {
+            setActivePresetId(null);
+            setPresetName('');
           }}
           onSavePreset={(presetId) => void savePreset(presetId)}
           onDeletePreset={() =>

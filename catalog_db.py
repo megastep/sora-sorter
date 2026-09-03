@@ -88,11 +88,19 @@ def _montage_export_duration_schema(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE montage_exports ADD COLUMN duration_seconds REAL")
 
 
+def _montage_preset_use_order_schema(db: sqlite3.Connection) -> None:
+    columns = {row["name"] for row in db.execute("PRAGMA table_info(montage_presets)")}
+    if "last_used_order" not in columns:
+        db.execute("ALTER TABLE montage_presets ADD COLUMN last_used_order INTEGER NOT NULL DEFAULT 0")
+        db.execute("UPDATE montage_presets SET last_used_order=id WHERE last_used_order=0")
+
+
 MIGRATIONS: tuple[Migration, ...] = (
     (1, "initial_schema", _initial_schema),
     (2, "montage_presets", _montage_presets_schema),
     (3, "montage_exports", _montage_exports_schema),
     (4, "montage_export_duration", _montage_export_duration_schema),
+    (5, "montage_preset_use_order", _montage_preset_use_order_schema),
 )
 
 
@@ -144,35 +152,49 @@ def list_montage_presets(db: sqlite3.Connection) -> list[dict[str, Any]]:
     return [
         {**dict(row), "settings": json.loads(row["settings_json"])}
         for row in db.execute(
-            "SELECT id, name, settings_json, last_used_at FROM montage_presets ORDER BY last_used_at DESC, id DESC"
+            "SELECT id, name, settings_json, last_used_at FROM montage_presets "
+            "ORDER BY last_used_order DESC, last_used_at DESC, id DESC"
         )
     ]
+
+
+def _next_preset_use_order(db: sqlite3.Connection) -> int:
+    return int(db.execute("SELECT COALESCE(MAX(last_used_order), 0) + 1 FROM montage_presets").fetchone()[0])
 
 
 def save_montage_preset(db: sqlite3.Connection, name: str, settings: dict[str, Any], preset_id: int | None = None) -> dict[str, Any]:
     cleaned = name.strip()
     if not 1 <= len(cleaned) <= 80:
         raise ValueError("Preset name must be between 1 and 80 characters")
-    with db:
-        if preset_id is None:
-            cursor = db.execute(
-                "INSERT INTO montage_presets(name, settings_json) VALUES (?, ?)",
-                (cleaned, json.dumps(settings, ensure_ascii=False)),
-            )
-            preset_id = int(cursor.lastrowid)
-        else:
-            cursor = db.execute(
-                "UPDATE montage_presets SET name=?, settings_json=?, updated_at=CURRENT_TIMESTAMP, last_used_at=CURRENT_TIMESTAMP WHERE id=?",
-                (cleaned, json.dumps(settings, ensure_ascii=False), preset_id),
-            )
-            if not cursor.rowcount:
-                raise KeyError(preset_id)
+    try:
+        with db:
+            use_order = _next_preset_use_order(db)
+            if preset_id is None:
+                cursor = db.execute(
+                    "INSERT INTO montage_presets(name, settings_json, last_used_order) VALUES (?, ?, ?)",
+                    (cleaned, json.dumps(settings, ensure_ascii=False), use_order),
+                )
+                preset_id = int(cursor.lastrowid)
+            else:
+                cursor = db.execute(
+                    "UPDATE montage_presets SET name=?, settings_json=?, updated_at=CURRENT_TIMESTAMP, last_used_at=CURRENT_TIMESTAMP, last_used_order=? WHERE id=?",
+                    (cleaned, json.dumps(settings, ensure_ascii=False), use_order, preset_id),
+                )
+                if not cursor.rowcount:
+                    raise KeyError(preset_id)
+    except sqlite3.IntegrityError as error:
+        if "montage_presets.name" in str(error):
+            raise ValueError("A montage preset with this name already exists") from None
+        raise
     return next(preset for preset in list_montage_presets(db) if preset["id"] == preset_id)
 
 
 def use_montage_preset(db: sqlite3.Connection, preset_id: int) -> None:
     with db:
-        cursor = db.execute("UPDATE montage_presets SET last_used_at=CURRENT_TIMESTAMP WHERE id=?", (preset_id,))
+        cursor = db.execute(
+            "UPDATE montage_presets SET last_used_at=CURRENT_TIMESTAMP, last_used_order=? WHERE id=?",
+            (_next_preset_use_order(db), preset_id),
+        )
         if not cursor.rowcount:
             raise KeyError(preset_id)
 

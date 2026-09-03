@@ -66,7 +66,7 @@ data. Test both a fresh database and a catalog created by the prior version.
 
 - Python 3.11 or newer
 - [uv](https://docs.astral.sh/uv/), for the local Python environment
-- Node.js 22 or newer and [pnpm](https://pnpm.io/), for the React frontend and
+- Node.js 22.12 or newer and [pnpm](https://pnpm.io/), for the React frontend and
   Remotion montage renderer
 - [FFmpeg](https://ffmpeg.org/), to generate poster frames the first time each
   clip is displayed and to prepare audio and representative frames for analysis

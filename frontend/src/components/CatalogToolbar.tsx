@@ -3,6 +3,7 @@ import {
   Brightness7Rounded,
   FileUploadRounded,
   FilterListRounded,
+  MoreVertRounded,
   VideoLibraryRounded,
 } from '@mui/icons-material';
 import {
@@ -13,6 +14,7 @@ import {
   FormControl,
   IconButton,
   InputLabel,
+  Menu,
   MenuItem,
   Select,
   Switch,
@@ -20,6 +22,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import { useState } from 'react';
 import { type Filters } from '../catalog';
 
 export type ColorMode = 'light' | 'dark';
@@ -53,6 +56,12 @@ export function CatalogToolbar({
   onToggleColorMode: () => void;
   onReimport: () => void;
 }) {
+  const [moreActionsAnchor, setMoreActionsAnchor] = useState<HTMLElement | null>(null);
+  const closeMoreActions = () => setMoreActionsAnchor(null);
+  const selectSort = (sort: string) => {
+    setFilters({ ...filters, sort });
+    closeMoreActions();
+  };
   return (
     <AppBar position="sticky" color="transparent" elevation={0}>
       <Toolbar
@@ -74,7 +83,12 @@ export function CatalogToolbar({
           </Box>
           Catalog
         </Typography>
-        <Button variant="outlined" size="small" onClick={onSelectAll}>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={onSelectAll}
+          sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+        >
           Select all
         </Button>
         <Button
@@ -82,6 +96,7 @@ export function CatalogToolbar({
           size="small"
           disabled={!montageSelectionCount}
           onClick={onUnselectAll}
+          sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
         >
           Unselect all
         </Button>
@@ -90,10 +105,16 @@ export function CatalogToolbar({
           size="small"
           disabled={montageSelectionCount < 2}
           onClick={onMontage}
+          sx={{ whiteSpace: 'nowrap' }}
         >
           Montage{montageSelectionCount ? ` (${montageSelectionCount})` : ''}
         </Button>
-        <Button variant="text" size="small" onClick={onExports}>
+        <Button
+          variant="text"
+          size="small"
+          onClick={onExports}
+          sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+        >
           Generated videos
         </Button>
         <Chip
@@ -102,7 +123,10 @@ export function CatalogToolbar({
           variant="outlined"
           sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
         />
-        <FormControl size="small" sx={{ minWidth: { xs: 0, sm: 154 } }}>
+        <FormControl
+          size="small"
+          sx={{ display: { xs: 'none', sm: 'inline-flex' }, minWidth: 154 }}
+        >
           <InputLabel id="sort-videos-label">Sort</InputLabel>
           <Select
             labelId="sort-videos-label"
@@ -128,6 +152,7 @@ export function CatalogToolbar({
             onChange={onToggleColorMode}
             icon={<Brightness7Rounded fontSize="small" />}
             checkedIcon={<Brightness4Rounded fontSize="small" />}
+            sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
           />
         </Tooltip>
         <Button
@@ -139,6 +164,73 @@ export function CatalogToolbar({
         >
           {importing ? 'Importing…' : 'Import / Reimport'}
         </Button>
+        <IconButton
+          aria-label="More catalog actions"
+          onClick={(event) => setMoreActionsAnchor(event.currentTarget)}
+          sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
+        >
+          <MoreVertRounded />
+        </IconButton>
+        <Menu
+          anchorEl={moreActionsAnchor}
+          open={Boolean(moreActionsAnchor)}
+          onClose={closeMoreActions}
+        >
+          <MenuItem
+            onClick={() => {
+              onSelectAll();
+              closeMoreActions();
+            }}
+          >
+            Select all
+          </MenuItem>
+          <MenuItem
+            disabled={!montageSelectionCount}
+            onClick={() => {
+              onUnselectAll();
+              closeMoreActions();
+            }}
+          >
+            Unselect all
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              onExports();
+              closeMoreActions();
+            }}
+          >
+            Generated videos
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              onToggleColorMode();
+              closeMoreActions();
+            }}
+          >
+            Switch to {colorMode === 'dark' ? 'light' : 'dark'} mode
+          </MenuItem>
+          <MenuItem disabled sx={{ opacity: '1 !important', fontWeight: 700 }}>
+            Sort
+          </MenuItem>
+          {[
+            ['newest', 'Newest first'],
+            ['oldest', 'Oldest first'],
+            ['title', 'Title A–Z'],
+            ['title_desc', 'Title Z–A'],
+            ['duration', 'Longest first'],
+            ['rating_desc', 'Rating: highest first'],
+            ['rating_asc', 'Rating: lowest first'],
+            ['language', 'Language A–Z'],
+          ].map(([value, label]) => (
+            <MenuItem
+              key={value}
+              selected={(filters.sort ?? 'newest') === value}
+              onClick={() => selectSort(value)}
+            >
+              {label}
+            </MenuItem>
+          ))}
+        </Menu>
       </Toolbar>
     </AppBar>
   );

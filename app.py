@@ -172,11 +172,40 @@ class MontagePresetPayload(BaseModel):
 
 
 app = FastAPI(title="Video Catalog")
-jobs: dict[str, dict] = {}
+jobs: dict[str, dict[str, object]] = {}
 job_lock = threading.Lock()
 capability_probe: dict[str, object] | None = None
 capability_probe_lock = threading.Lock()
 MONTAGE_PAGE_DURATION_SECONDS = 3
+JOB_RESPONSE_FIELDS = (
+    "id",
+    "title",
+    "duration_seconds",
+    "status",
+    "progress",
+    "stage",
+    "error_code",
+    "error",
+)
+
+
+def job_response(job: dict[str, object]) -> dict[str, object]:
+    return {field: job[field] for field in JOB_RESPONSE_FIELDS if field in job}
+
+
+def read_job(job_id: str) -> dict[str, object] | None:
+    with job_lock:
+        job = jobs.get(job_id)
+        return dict(job) if job else None
+
+
+def update_job(job_id: str, **changes: object) -> dict[str, object] | None:
+    with job_lock:
+        job = jobs.get(job_id)
+        if not job:
+            return None
+        job.update(changes)
+        return dict(job)
 
 
 @app.get("/api/videos")
@@ -206,7 +235,10 @@ def batch_videos(payload: BatchPayload):
     for video_id in payload.ids:
         item = record(video_id)
         file_for(video_id)
-        items.append({"id": item["id"], "title": item["title"], "duration_seconds": item["duration_seconds"] or 0, "width": item.get("width"), "height": item.get("height"), "orientation": item.get("orientation") or "landscape", "media_url": f"/api/videos/{video_id}/media", "poster_url": f"/api/videos/{video_id}/poster"})
+        duration = item.get("duration_seconds")
+        if not isinstance(duration, (int, float)) or duration <= 0:
+            raise HTTPException(422, f"Video duration is unavailable: {video_id}. Reanalyze the clip before creating a montage.")
+        items.append({"id": item["id"], "title": item["title"], "duration_seconds": duration, "width": item.get("width"), "height": item.get("height"), "orientation": item.get("orientation") or "landscape", "media_url": f"/api/videos/{video_id}/media", "poster_url": f"/api/videos/{video_id}/poster"})
     return {"items": items}
 
 
@@ -263,30 +295,58 @@ def poster(video_id: str):
 
 
 def _render_job(job_id: str, request_path: Path) -> None:
-    job = jobs[job_id]
-    job["status"] = "rendering"
+    update_job(job_id, status="rendering")
     try:
-        process = subprocess.Popen(["node", "render.mjs", str(request_path)], cwd=Path(__file__).parent / "frontend", stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            process = subprocess.Popen(
+                ["node", "render.mjs", str(request_path)],
+                cwd=Path(__file__).parent / "frontend",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+        except OSError as error:
+            update_job(
+                job_id,
+                status="failed",
+                error_code="render_failed",
+                error=f"Could not start Remotion renderer: {error}",
+            )
+            job = read_job(job_id)
+            if job:
+                Path(str(job["output"])).unlink(missing_ok=True)
+            return
         assert process.stdout is not None
+        renderer_output: list[str] = []
         for line in process.stdout:
             try:
                 event = json.loads(line)
-                job.update({key: value for key, value in event.items() if key in {"progress", "stage"}})
+                update_job(job_id, **{key: value for key, value in event.items() if key in {"progress", "stage"}})
             except json.JSONDecodeError:
-                continue
-        stderr = process.stderr.read() if process.stderr else ""
+                renderer_output.append(line.rstrip())
+                renderer_output = renderer_output[-20:]
         if process.wait() != 0:
-            job.update(status="failed", error_code="hardware_acceleration_unavailable" if "hardware" in stderr.lower() or "videotoolbox" in stderr.lower() else "render_failed", error=stderr[-800:] or "Remotion renderer failed")
-            Path(job["output"]).unlink(missing_ok=True)
+            error = "\n".join(renderer_output)[-800:] or "Remotion renderer failed"
+            update_job(
+                job_id,
+                status="failed",
+                error_code="hardware_acceleration_unavailable" if "hardware" in error.lower() or "videotoolbox" in error.lower() else "render_failed",
+                error=error,
+            )
+            job = read_job(job_id)
+            if job:
+                Path(str(job["output"])).unlink(missing_ok=True)
         else:
-            job.update(status="completed", progress=1, stage="completed")
+            job = update_job(job_id, status="completed", progress=1, stage="completed")
+            if not job:
+                return
             connection = db()
             try:
                 record_montage_export(
                     connection,
                     job_id,
-                    job["title"],
-                    Path(job["output"]).name,
+                    str(job["title"]),
+                    Path(str(job["output"])).name,
                     float(job["duration_seconds"]),
                 )
             finally:
@@ -312,6 +372,14 @@ def montage_duration_seconds(spec: dict) -> float:
     if spec["endPage"]["enabled"]:
         total += MONTAGE_PAGE_DURATION_SECONDS - 0.5
     return max(0, total)
+
+
+def validate_montage_transition(spec: dict) -> None:
+    if spec["transition"] == "cut":
+        return
+    duration = float(spec["transitionDuration"])
+    if any(float(clip["duration_seconds"]) <= duration for clip in spec["clips"]):
+        raise HTTPException(400, "Transition duration must be shorter than every selected clip.")
 
 
 @app.get("/api/montages/capabilities")
@@ -422,6 +490,7 @@ def create_montage(payload: MontageRequest, request: Request):
         for clip in authoritative:
             clip["media_url"] = base_url + clip["media_url"]
         spec["clips"] = authoritative
+        validate_montage_transition(spec)
         montage_root = active_paths().montage_directory
         montage_root.mkdir(parents=True, exist_ok=True)
         job_id = uuid.uuid4().hex
@@ -429,24 +498,25 @@ def create_montage(payload: MontageRequest, request: Request):
         request_path = montage_root / f".{job_id}.json"
         request_path.write_text(json.dumps({"spec": spec, "output": str(output), "software_fallback": payload.software_fallback}), encoding="utf-8")
         jobs[job_id] = {"id": job_id, "title": spec["title"], "duration_seconds": montage_duration_seconds(spec), "status": "queued", "progress": 0, "stage": "queued", "output": str(output)}
+        response = job_response(jobs[job_id])
         threading.Thread(target=_render_job, args=(job_id, request_path), daemon=True).start()
-        return {key: value for key, value in jobs[job_id].items() if key != "output"}
+        return response
 
 
 @app.get("/api/montages/{job_id}")
 def montage_status(job_id: str):
-    job = jobs.get(job_id)
+    job = read_job(job_id)
     if not job:
         raise HTTPException(404, "Montage export not found")
-    return {key: value for key, value in job.items() if key != "output"}
+    return job_response(job)
 
 
 @app.get("/api/montages/{job_id}/download")
 def download_montage(job_id: str):
-    job = jobs.get(job_id)
+    job = read_job(job_id)
     if not job or job["status"] != "completed":
         raise HTTPException(404, "Montage export is not ready")
-    output = Path(job["output"])
+    output = Path(str(job["output"]))
     if not output.is_file() or active_paths().montage_directory not in output.parents:
         raise HTTPException(404, "Montage file is unavailable")
     return FileResponse(output, media_type="video/mp4", filename=output.name)

@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from catalog_db import connect, import_directory, initialize, list_keywords, list_video_ids, list_videos, migrate, update
+from catalog_db import connect, import_directory, initialize, list_keywords, list_montage_presets, list_video_ids, list_videos, migrate, save_montage_preset, update, use_montage_preset
 
 
 def analysis_record(summary: str) -> dict:
@@ -131,7 +131,7 @@ class CatalogDatabaseTests(unittest.TestCase):
         database = connect(self.root / "new-catalog.sqlite")
         self.addCleanup(database.close)
 
-        self.assertEqual(migrate(database), [1, 2, 3, 4])
+        self.assertEqual(migrate(database), [1, 2, 3, 4, 5])
         self.assertEqual(migrate(database), [])
         self.assertEqual(
             [tuple(row) for row in database.execute("SELECT version, name FROM schema_migrations")],
@@ -140,6 +140,7 @@ class CatalogDatabaseTests(unittest.TestCase):
                 (2, "montage_presets"),
                 (3, "montage_exports"),
                 (4, "montage_export_duration"),
+                (5, "montage_preset_use_order"),
             ],
         )
 
@@ -150,9 +151,23 @@ class CatalogDatabaseTests(unittest.TestCase):
         self.database.execute("DROP TABLE schema_migrations")
         self.database.commit()
 
-        self.assertEqual(migrate(self.database), [1, 2, 3, 4])
+        self.assertEqual(migrate(self.database), [1, 2, 3, 4, 5])
         videos, total = list_videos(self.database)
 
         self.assertEqual(total, 1)
         self.assertEqual(videos[0]["title"], "Saved title")
         self.assertEqual(videos[0]["review_status"], "approved")
+
+    def test_preset_name_conflicts_are_validation_errors(self) -> None:
+        save_montage_preset(self.database, "Social", {})
+
+        with self.assertRaisesRegex(ValueError, "already exists"):
+            save_montage_preset(self.database, "social", {})
+
+    def test_preset_use_order_tracks_rapid_selection_order(self) -> None:
+        first = save_montage_preset(self.database, "First", {})
+        second = save_montage_preset(self.database, "Second", {})
+
+        use_montage_preset(self.database, first["id"])
+
+        self.assertEqual([preset["id"] for preset in list_montage_presets(self.database)], [first["id"], second["id"]])

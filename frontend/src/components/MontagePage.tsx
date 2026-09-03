@@ -86,20 +86,16 @@ export function MontagePage({
   const [activePresetId, setActivePresetId] = useState<number | null>(null);
   const [job, setJob] = useState<RenderJob | null>(null);
   const [accelerationReason, setAccelerationReason] = useState<string | null>(null);
-  const hasInitializedFromClips = useRef(false);
+  const [clipsReady, setClipsReady] = useState(false);
+  const [presetsReady, setPresetsReady] = useState(false);
+  const hasInitializedEditor = useRef(false);
   useEffect(() => {
     let active = true;
     // fallow-ignore-next-line complexity -- initializes title and orientation together from the selected first clip.
     void fetchMontageClips(ids).then((items) => {
       if (!active) return;
       setClips(items);
-      if (!hasInitializedFromClips.current) {
-        hasInitializedFromClips.current = true;
-        dispatchEditor({
-          title: items[0]?.title ?? '',
-          format: items[0]?.orientation === 'portrait' ? 'portrait' : 'landscape',
-        });
-      }
+      setClipsReady(true);
     });
     return () => {
       active = false;
@@ -119,9 +115,29 @@ export function MontagePage({
   useEffect(() => {
     void fetchMontagePresets().then((items) => {
       setPresets(items);
-      if (items[0]) applyPreset(items[0]);
+      setPresetsReady(true);
     });
   }, []);
+  // fallow-ignore-next-line complexity -- initial editor settings must atomically account for both loaded clips and presets.
+  useEffect(() => {
+    if (hasInitializedEditor.current || !clipsReady || !presetsReady) return;
+    hasInitializedEditor.current = true;
+    const preset = presets[0];
+    if (preset) {
+      const next = preset.settings;
+      dispatchEditor({
+        ...next,
+        fillMismatchedOrientation: next.fillMismatchedOrientation ?? true,
+      });
+      setActivePresetId(preset.id);
+      setPresetName(preset.name);
+      return;
+    }
+    dispatchEditor({
+      title: clips[0]?.title ?? '',
+      format: clips[0]?.orientation === 'portrait' ? 'portrait' : 'landscape',
+    });
+  }, [clips, clipsReady, presets, presetsReady]);
   const refreshPresets = async () => setPresets(await fetchMontagePresets());
   const savePreset = async (presetId?: number) => {
     const saved = await saveMontagePreset(presetName, settings, presetId);

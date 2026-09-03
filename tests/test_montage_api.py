@@ -7,7 +7,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 import app as catalog_app
-from catalog_db import connect, import_directory, initialize
+from catalog_db import connect, import_directory, initialize, montage_export, record_montage_export
 
 
 def record(video_id: str, duration: float | None) -> dict:
@@ -103,3 +103,13 @@ class MontageApiTests(unittest.TestCase):
         )
 
         self.assertEqual(response, {"id": "job", "status": "completed"})
+
+    def test_deletes_stale_export_record_when_the_file_is_missing(self) -> None:
+        database = connect(self.root / "catalog.sqlite")
+        self.addCleanup(database.close)
+        record_montage_export(database, "job-1", "Missing file", "missing.mp4", 12)
+        export_id = database.execute("SELECT id FROM montage_exports WHERE job_id='job-1'").fetchone()[0]
+
+        self.assertEqual(catalog_app.remove_montage_export(export_id), {"deleted": True})
+        with self.assertRaises(KeyError):
+            montage_export(database, export_id)

@@ -1,4 +1,4 @@
-import { CssBaseline, ThemeProvider } from '@mui/material';
+import { Box, CssBaseline, ThemeProvider } from '@mui/material';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { selectionStorageKey } from './montage';
@@ -37,40 +37,31 @@ export function App() {
     window.sessionStorage.setItem(selectionStorageKey, JSON.stringify(montageSelection));
   }, [montageSelection]);
 
-  if (location.pathname === '/montages') {
-    return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <MontageExportsPage onBack={() => navigate('/montage')} />
-      </ThemeProvider>
-    );
-  }
-
-  if (location.pathname === '/montage') {
-    return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Box sx={{ display: location.pathname === '/' ? 'block' : 'none' }}>
+        <CatalogPage
+          montageSelection={montageSelection}
+          setMontageSelection={setMontageSelection}
+          colorMode={colorMode}
+          onMontage={() => navigate('/montage')}
+          onExports={() => navigate('/montages')}
+          onToggleColorMode={() => setColorMode((mode) => (mode === 'dark' ? 'light' : 'dark'))}
+          active={location.pathname === '/'}
+        />
+      </Box>
+      {location.pathname === '/montage' && (
         <MontagePage
           ids={montageSelection}
           onBack={() => navigate('/')}
           onReorder={setMontageSelection}
           onExports={() => navigate('/montages')}
         />
-      </ThemeProvider>
-    );
-  }
-
-  return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <CatalogPage
-        montageSelection={montageSelection}
-        setMontageSelection={setMontageSelection}
-        colorMode={colorMode}
-        onMontage={() => navigate('/montage')}
-        onExports={() => navigate('/montages')}
-        onToggleColorMode={() => setColorMode((mode) => (mode === 'dark' ? 'light' : 'dark'))}
-      />
+      )}
+      {location.pathname === '/montages' && (
+        <MontageExportsPage onBack={() => navigate('/montage')} />
+      )}
     </ThemeProvider>
   );
 }

@@ -538,15 +538,26 @@ def download_montage_export(export_id: int):
 
 
 def montage_export_path(export_id: int) -> Path:
+    entry = montage_export_entry(export_id)
+    output = montage_export_file_path(entry)
+    if not output.is_file():
+        raise HTTPException(404, "Montage file is unavailable")
+    return output
+
+
+def montage_export_entry(export_id: int) -> dict[str, object]:
     connection = db()
     try:
-        entry = montage_export(connection, export_id)
+        return montage_export(connection, export_id)
     except KeyError:
         raise HTTPException(404, "Montage export not found")
     finally:
         connection.close()
-    output = active_paths().montage_directory / Path(entry["filename"]).name
-    if not output.is_file() or active_paths().montage_directory not in output.parents:
+
+
+def montage_export_file_path(entry: dict[str, object]) -> Path:
+    output = active_paths().montage_directory / Path(str(entry["filename"])).name
+    if active_paths().montage_directory not in output.parents:
         raise HTTPException(404, "Montage file is unavailable")
     return output
 
@@ -558,8 +569,10 @@ def stream_montage_export(export_id: int):
 
 @app.delete("/api/montage-exports/{export_id}")
 def remove_montage_export(export_id: int):
-    output = montage_export_path(export_id)
-    output.unlink(missing_ok=True)
+    entry = montage_export_entry(export_id)
+    output = montage_export_file_path(entry)
+    if output.is_file():
+        output.unlink()
     connection = db()
     try:
         delete_montage_export(connection, export_id)

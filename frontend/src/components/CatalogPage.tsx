@@ -22,6 +22,8 @@ import { FiltersPanel } from './FiltersPanel';
 import { Inspector } from './Inspector';
 import { Lightbox } from './Lightbox';
 
+// fallow-ignore-next-line complexity -- catalog state and its responsive surfaces intentionally share one lifecycle.
+// react-doctor-disable-next-line react-doctor/no-high-complexity-react-function -- the route-preserved catalog controller must keep its query, selection, inspector, and lightbox state alive together.
 export function CatalogPage({
   montageSelection,
   setMontageSelection,
@@ -29,6 +31,7 @@ export function CatalogPage({
   onToggleColorMode,
   onMontage,
   onExports,
+  active = true,
 }: {
   montageSelection: string[];
   setMontageSelection: Dispatch<SetStateAction<string[]>>;
@@ -36,6 +39,7 @@ export function CatalogPage({
   onToggleColorMode: () => void;
   onMontage: () => void;
   onExports: () => void;
+  active?: boolean;
 }) {
   const [filters, setFilters] = useState<Filters>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -158,7 +162,7 @@ export function CatalogPage({
             keywordsError={keywords.isError}
           />
         </Paper>
-        <Drawer anchor="left" open={filtersOpen} onClose={() => setFiltersOpen(false)}>
+        <Drawer anchor="left" open={active && filtersOpen} onClose={() => setFiltersOpen(false)}>
           <Box sx={{ width: 300 }}>
             <FiltersPanel
               filters={filters}
@@ -227,7 +231,7 @@ export function CatalogPage({
             {loadingMessage}
           </Typography>
         </Box>
-        {selected && desktopInspector && (
+        {active && selected && desktopInspector && (
           <Inspector
             key={selected.id}
             item={selected}
@@ -236,7 +240,7 @@ export function CatalogPage({
           />
         )}
       </Box>
-      {selected && !desktopInspector && (
+      {active && selected && !desktopInspector && (
         <Drawer anchor="right" open onClose={() => setSelectedId(null)}>
           <Box sx={{ width: { xs: '100vw', sm: 440 }, maxWidth: '100vw', height: '100%' }}>
             <Inspector
@@ -249,7 +253,7 @@ export function CatalogPage({
           </Box>
         </Drawer>
       )}
-      {lightboxItem && (
+      {active && lightboxItem && (
         <Lightbox
           items={items}
           item={lightboxItem}

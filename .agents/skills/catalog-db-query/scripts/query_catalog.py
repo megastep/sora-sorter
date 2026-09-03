@@ -183,7 +183,11 @@ def api_url(server: str, path: str) -> str:
 
 
 def api_request(
-    server: str, method: str, path: str, payload: dict[str, Any] | None = None
+    server: str,
+    method: str,
+    path: str,
+    payload: dict[str, Any] | None = None,
+    timeout: float = 30,
 ) -> dict[str, Any]:
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     request = Request(
@@ -193,7 +197,7 @@ def api_request(
         headers={"Content-Type": "application/json"} if body is not None else {},
     )
     try:
-        with urlopen(request, timeout=30) as response:
+        with urlopen(request, timeout=timeout) as response:
             return json.loads(response.read())
     except HTTPError as error:
         try:
@@ -245,7 +249,8 @@ def resolve_preset(args: argparse.Namespace) -> dict[str, Any]:
 def require_acceleration(args: argparse.Namespace) -> None:
     if args.software_fallback:
         return
-    capability = api_request(args.server, "GET", "/api/montages/capabilities")
+    # The server's cold Remotion capability probe has a 120-second budget.
+    capability = api_request(args.server, "GET", "/api/montages/capabilities", timeout=130)
     if not capability["accelerated"]:
         reason = capability.get("reason", "The required GPU encoder is unavailable.")
         raise ValueError(
@@ -348,6 +353,10 @@ def generate_montage(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def markdown_cell(value: object) -> str:
+    return str(value).replace("\\", "\\\\").replace("|", "\\|").replace("\r", " ").replace("\n", " ")
+
+
 def markdown(payload: dict[str, Any]) -> str:
     if payload["kind"] == "search":
         rows = payload["items"]
@@ -356,7 +365,7 @@ def markdown(payload: dict[str, Any]) -> str:
             return heading + "\n\nNo clips matched."
         table = ["| Title | ID | Review | Duration |", "| --- | --- | --- | --- |"]
         for item in rows:
-            title = str(item["title"]).replace("|", "\\|")
+            title = markdown_cell(item["title"])
             table.append(
                 f"| {title} | {item['id']} | {item['review_status']} | {item['duration_seconds']} |"
             )
@@ -366,7 +375,7 @@ def markdown(payload: dict[str, Any]) -> str:
         for preset in payload["items"]:
             settings = preset["settings"]
             table.append(
-                f"| {preset['name']} | {preset['id']} | {settings['format']} | "
+                f"| {markdown_cell(preset['name'])} | {preset['id']} | {settings['format']} | "
                 f"{settings['transition']} | {preset['last_used_at']} |"
             )
         return "\n".join(["# Montage presets", "", *table])
@@ -374,7 +383,7 @@ def markdown(payload: dict[str, Any]) -> str:
         table = ["| Title | ID | Duration | Generated |", "| --- | --- | --- | --- |"]
         for item in payload["items"]:
             table.append(
-                f"| {item['title']} | {item['id']} | {item['duration_seconds']} | "
+                f"| {markdown_cell(item['title'])} | {item['id']} | {item['duration_seconds']} | "
                 f"{item['generated_at']} |"
             )
         return "\n".join(["# Generated montages", "", *table])

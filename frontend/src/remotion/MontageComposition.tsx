@@ -192,23 +192,6 @@ export function MontageComposition({ spec }: { spec: MontageSpec }) {
     spec.transition === 'slide' ? slide() : spec.transition === 'wipe' ? wipe() : fade();
   return (
     <AbsoluteFill style={{ width, height, background: '#000' }}>
-      {spec.title && (
-        <Sequence durationInFrames={pageDurationFrames}>
-          <TitleCard
-            src={spec.clips[0].media_url}
-            title={spec.title}
-            subtitle={spec.titleSubtitle}
-            fontSize={spec.titleFontSize}
-            subtitleFontSize={spec.titleSubtitleFontSize}
-            freezeFrame={0}
-            durationInFrames={pageDurationFrames}
-            reveal
-            zoom
-            blurIn={false}
-            fade="out"
-          />
-        </Sequence>
-      )}
       <Sequence from={spec.title ? pageDurationFrames - pageTransitionFrames : 0}>
         <TransitionSeries>
           {spec.clips.map((clip, index) => (
@@ -241,6 +224,23 @@ export function MontageComposition({ spec }: { spec: MontageSpec }) {
           ))}
         </TransitionSeries>
       </Sequence>
+      {spec.title && (
+        <Sequence durationInFrames={pageDurationFrames}>
+          <TitleCard
+            src={spec.clips[0].media_url}
+            title={spec.title}
+            subtitle={spec.titleSubtitle}
+            fontSize={spec.titleFontSize}
+            subtitleFontSize={spec.titleSubtitleFontSize}
+            freezeFrame={0}
+            durationInFrames={pageDurationFrames}
+            reveal
+            zoom
+            blurIn={false}
+            fade="out"
+          />
+        </Sequence>
+      )}
       {spec.endPage.enabled && (
         <Sequence
           from={

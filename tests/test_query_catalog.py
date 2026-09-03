@@ -112,6 +112,19 @@ class MontageCliTests(unittest.TestCase):
                     self.reply({"items": [preset]})
                 elif self.path == "/api/montages/capabilities":
                     self.reply(capability)
+                elif self.path == "/api/montage-exports":
+                    self.reply(
+                        {
+                            "items": [
+                                {
+                                    "id": 1,
+                                    "title": "Draft | portrait\nsecond line",
+                                    "duration_seconds": 12,
+                                    "generated_at": "2026-09-03 12:00:00",
+                                }
+                            ]
+                        }
+                    )
                 elif self.path == "/api/montages/job-1":
                     self.reply(
                         {
@@ -175,6 +188,17 @@ class MontageCliTests(unittest.TestCase):
         self.assertEqual(payload["kind"], "presets")
         self.assertEqual(payload["items"][0]["name"], "Social")
         self.assertNotIn("settings_json", payload["items"][0])
+
+    def test_montage_markdown_escapes_user_text_in_table_cells(self) -> None:
+        self.preset["name"] = "Draft | portrait\nsecond line"
+
+        presets = self.run_cli("--format", "markdown", "presets")
+        montages = self.run_cli("--format", "markdown", "montages")
+
+        self.assertEqual(presets.returncode, 0, presets.stderr)
+        self.assertEqual(montages.returncode, 0, montages.stderr)
+        self.assertIn("Draft \\| portrait second line", presets.stdout)
+        self.assertIn("Draft \\| portrait second line", montages.stdout)
 
     def test_generates_with_preset_and_preserves_video_order(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

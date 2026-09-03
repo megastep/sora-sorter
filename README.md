@@ -34,6 +34,10 @@ The equivalent environment variables are `VIDEO_CATALOG_LIBRARY_ROOT`,
 `VIDEO_CATALOG_DATABASE_PATH`, `VIDEO_CATALOG_JSON_DIRECTORY`,
 `VIDEO_CATALOG_POSTER_DIRECTORY`, and `VIDEO_CATALOG_PORT`.
 
+For a local default, copy `.env.example` to `.env` and set
+`VIDEO_CATALOG_LIBRARY_ROOT`. The local `.env` file is gitignored and never
+overrides environment variables explicitly supplied to the process.
+
 If optional paths are omitted, the database, JSON directory, and poster cache
 default to `catalog.sqlite`, `video_catalog_json`, and `.catalog_posters`
 inside the library root.

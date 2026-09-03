@@ -32,6 +32,21 @@ def resolve_path(value: str | Path) -> Path:
     return Path(value).expanduser().resolve()
 
 
+def load_local_environment(path: Path) -> None:
+    """Load simple KEY=VALUE entries without overriding the calling shell."""
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        entry = line.strip()
+        if not entry or entry.startswith("#") or "=" not in entry:
+            continue
+        key, value = entry.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("\"'")
+        if key:
+            os.environ.setdefault(key, value)
+
+
 def catalog_paths(library_root: str | Path, database_path: str | Path | None = None, json_directory: str | Path | None = None, poster_directory: str | Path | None = None) -> CatalogPaths:
     root = resolve_path(library_root)
     if not root.is_dir():
@@ -170,6 +185,9 @@ def parse_arguments() -> argparse.Namespace:
     if not arguments.library_root:
         parser.error("--library-root or VIDEO_CATALOG_LIBRARY_ROOT is required")
     return arguments
+
+
+load_local_environment(Path(__file__).with_name(".env"))
 
 
 if os.environ.get("VIDEO_CATALOG_LIBRARY_ROOT"):

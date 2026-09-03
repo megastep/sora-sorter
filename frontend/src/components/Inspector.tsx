@@ -105,9 +105,6 @@ export function Inspector({ item, onSaved }: { item: Video; onSaved: (value: Vid
           <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
             Inspector
           </Typography>
-          <Typography variant="body2" color="text.secondary" noWrap>
-            {draft.id.slice(0, 12)}…
-          </Typography>
         </Box>
         <Box
           component="video"

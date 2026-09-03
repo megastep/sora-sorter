@@ -102,13 +102,14 @@ export function Card({
             direction="row"
             sx={{ justifyContent: 'space-between', alignItems: 'start', gap: 1 }}
           >
-            <Typography variant="subtitle2" noWrap sx={{ fontWeight: 800 }}>
+            <Typography variant="subtitle2" sx={{ minWidth: 0, fontWeight: 800 }}>
               {item.title}
             </Typography>
             <Chip
               label={`${Math.round(item.duration_seconds || 0)}s`}
               size="small"
               variant="outlined"
+              sx={{ flexShrink: 0 }}
             />
           </Stack>
           <Typography

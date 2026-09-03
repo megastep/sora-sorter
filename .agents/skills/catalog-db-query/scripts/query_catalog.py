@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import sqlite3
 import sys
 import tempfile
@@ -295,7 +294,16 @@ def download_montage(args: argparse.Namespace, job_id: str) -> Path:
         raise ValueError(f"Could not prepare download output for {output}: {error}") from None
     try:
         with urlopen(request, timeout=60) as response, partial.open("wb") as destination:
-            shutil.copyfileobj(response, destination)
+            content_length = response.headers.get("Content-Length")
+            expected_bytes = int(content_length) if content_length is not None else None
+            received_bytes = 0
+            while chunk := response.read(1024 * 1024):
+                destination.write(chunk)
+                received_bytes += len(chunk)
+            if expected_bytes is not None and received_bytes != expected_bytes:
+                raise ValueError(
+                    f"Download was incomplete: received {received_bytes} of {expected_bytes} bytes"
+                )
         if args.force:
             partial.replace(output)
         else:
@@ -307,6 +315,9 @@ def download_montage(args: argparse.Namespace, job_id: str) -> Path:
     except URLError as error:
         partial.unlink(missing_ok=True)
         raise ValueError(f"Could not download montage job {job_id}: {error.reason}") from None
+    except ValueError:
+        partial.unlink(missing_ok=True)
+        raise
     except OSError as error:
         partial.unlink(missing_ok=True)
         raise ValueError(f"Could not save montage to {output}: {error}") from None

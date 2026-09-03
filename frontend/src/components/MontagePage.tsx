@@ -257,6 +257,7 @@ export function MontagePage({
   }, [job]);
   // fallow-ignore-next-line complexity -- capability handling and render errors must share the same user-visible export state.
   const startExport = async (softwareFallback = false) => {
+    setExportStarting(true);
     try {
       setExportError(null);
       if (!softwareFallback) {

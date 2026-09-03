@@ -201,7 +201,7 @@ export function CatalogPage({
               startIcon={<FileUploadRounded />}
               onClick={() => void reimport()}
               disabled={importing}
-              sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
+              sx={{ display: { xs: 'inline-flex', lg: 'none' } }}
             >
               {importing ? 'Importing…' : 'Import'}
             </Button>

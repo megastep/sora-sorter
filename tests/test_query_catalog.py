@@ -71,8 +71,10 @@ class MontageCliTests(unittest.TestCase):
     def setUp(self) -> None:
         self.requests: list[tuple[str, str, dict | None]] = []
         self.capability = {"accelerated": True}
+        self.download = {"body": b"mp4-data", "content_length": len(b"mp4-data")}
         requests = self.requests
         capability = self.capability
+        download = self.download
         self.preset = {
             "id": 7,
             "name": "Social",
@@ -135,10 +137,10 @@ class MontageCliTests(unittest.TestCase):
                         }
                     )
                 elif self.path == "/api/montages/job-1/download":
-                    body = b"mp4-data"
+                    body = download["body"]
                     self.send_response(200)
                     self.send_header("Content-Type", "video/mp4")
-                    self.send_header("Content-Length", str(len(body)))
+                    self.send_header("Content-Length", str(download["content_length"]))
                     self.end_headers()
                     self.wfile.write(body)
                 else:
@@ -225,6 +227,16 @@ class MontageCliTests(unittest.TestCase):
             self.assertEqual(render_request["spec"]["format"], "portrait")
             self.assertTrue(render_request["spec"]["fillMismatchedOrientation"])
             self.assertIn(("POST", "/api/montage-presets/7/use", {}), self.requests)
+
+    def test_rejects_truncated_download_without_publishing_partial_output(self) -> None:
+        self.download["content_length"] = len(self.download["body"]) + 1
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "result.mp4"
+            result = self.run_cli("job", "job-1", "--output", str(output))
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Download was incomplete", result.stderr)
+            self.assertFalse(output.exists())
 
     def test_rejects_duplicate_video_ids_before_rendering(self) -> None:
         result = self.run_cli("generate", "same", "same", "--preset", "7")

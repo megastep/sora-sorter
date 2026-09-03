@@ -577,7 +577,9 @@ def frontend():
     return FileResponse(Path(__file__).parent / "frontend" / "dist" / "index.html")
 
 
-app.mount("/assets", StaticFiles(directory=Path(__file__).parent / "frontend" / "dist" / "assets"), name="assets")
+frontend_assets = Path(__file__).parent / "frontend" / "dist" / "assets"
+if frontend_assets.is_dir():
+    app.mount("/assets", StaticFiles(directory=frontend_assets), name="assets")
 
 
 def parse_arguments() -> argparse.Namespace:

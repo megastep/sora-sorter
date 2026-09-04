@@ -142,6 +142,16 @@ class MontageApiTests(unittest.TestCase):
         self.assertFalse(capability["accelerated"])
         self.assertIsNone(catalog_app.capability_probe)
 
+    def test_non_encoder_capability_probe_failure_is_not_cached(self) -> None:
+        with patch(
+            "app.subprocess.run",
+            return_value=subprocess.CompletedProcess(["node"], 1, stderr="Chromium crashed"),
+        ):
+            capability = catalog_app.montage_capabilities()
+
+        self.assertFalse(capability["accelerated"])
+        self.assertIsNone(catalog_app.capability_probe)
+
     def test_retries_export_persistence_after_a_transient_database_lock(self) -> None:
         job = {
             "title": "Export",

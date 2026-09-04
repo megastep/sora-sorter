@@ -51,6 +51,18 @@ const isMissingRenderJob = (error: unknown) =>
   error instanceof Error && error.message.includes('(404)');
 const activeRenderJobStorageKey = 'video-catalog-active-montage-job';
 
+const previewableSpec = (spec: MontageSpec): MontageSpec => {
+  const shortestClip = Math.min(...spec.clips.map((clip) => clip.duration_seconds));
+  if (
+    spec.transition !== 'cut' &&
+    Math.max(1, Math.round(shortestClip * montageFps)) <=
+      Math.max(1, Math.round(spec.transitionDuration * montageFps))
+  ) {
+    return { ...spec, transition: 'cut', transitionDuration: 0 };
+  }
+  return spec;
+};
+
 const initialEditorState: MontageSettings = {
   format: 'landscape',
   fillMismatchedOrientation: true,
@@ -163,29 +175,31 @@ function MontageSelectionState({
   );
 }
 
+// fallow-ignore-next-line complexity -- polling must atomically coordinate in-flight requests, stale IDs, retries, and persisted job state.
 function useActiveRenderJob(setExportError: Dispatch<SetStateAction<string | null>>) {
   const [job, setJob] = useState<RenderJob | null>(() => {
     const id = window.sessionStorage.getItem(activeRenderJobStorageKey);
     return id ? { id, status: 'rendering', progress: 0, stage: 'Reconnecting to export…' } : null;
   });
   const statusFailureCount = useRef(0);
-  const activeJobId = useRef<string | null>(job?.id ?? null);
+  const currentJobId = useRef<string | null>(job?.id ?? null);
   const pollInFlight = useRef(false);
+  const jobId = job?.id;
+  const jobStatus = job?.status;
 
   useEffect(() => {
-    activeJobId.current = job?.id ?? null;
+    currentJobId.current = jobId ?? null;
     statusFailureCount.current = 0;
-  }, [job?.id]);
+  }, [jobId]);
 
   useEffect(() => {
-    if (!job || !['queued', 'rendering'].includes(job.status)) return;
-    const jobId = job.id;
+    if (!jobId || !jobStatus || !['queued', 'rendering'].includes(jobStatus)) return;
     const poll = () => {
       if (pollInFlight.current) return;
       pollInFlight.current = true;
       void fetchRenderJob(jobId)
         .then((nextJob) => {
-          if (activeJobId.current !== jobId) return;
+          if (currentJobId.current !== jobId) return;
           statusFailureCount.current = 0;
           setExportError(null);
           setJob((current) => (current?.id === jobId ? nextJob : current));
@@ -193,7 +207,7 @@ function useActiveRenderJob(setExportError: Dispatch<SetStateAction<string | nul
             window.dispatchEvent(new Event('montage-export-completed'));
         })
         .catch((error: unknown) => {
-          if (activeJobId.current !== jobId) return;
+          if (currentJobId.current !== jobId) return;
           const message = error instanceof Error ? error.message : 'Export status is unavailable.';
           if (isMissingRenderJob(error)) {
             setJob((current) =>
@@ -213,7 +227,7 @@ function useActiveRenderJob(setExportError: Dispatch<SetStateAction<string | nul
     poll();
     const timer = window.setInterval(poll, 900);
     return () => window.clearInterval(timer);
-  }, [job, setExportError]);
+  }, [jobId, jobStatus, setExportError]);
 
   useEffect(() => {
     if (!job) return;
@@ -255,6 +269,7 @@ export function MontagePage({
   const [presetsReady, setPresetsReady] = useState(false);
   const [presetsError, setPresetsError] = useState<string | null>(null);
   const hasInitializedEditor = useRef(false);
+  const presetSelectionVersion = useRef(0);
   const playerRef = useRef<PlayerRef>(null);
   const specRef = useRef<MontageSpec>({ clips: [], ...initialEditorState });
   const clipMembershipKey = useMemo(() => [...ids].sort().join('\u0000'), [ids]);
@@ -295,6 +310,7 @@ export function MontagePage({
     specRef.current = spec;
   }, [spec]);
   const applyPreset = (preset: MontagePreset) => {
+    presetSelectionVersion.current += 1;
     const next = preset.settings;
     dispatchEditor({
       ...next,
@@ -335,14 +351,32 @@ export function MontagePage({
     });
   }, [clips, clipsReady, presets, presetsReady]);
   const refreshPresets = async () => setPresets(await fetchMontagePresets());
+  // fallow-ignore-next-line complexity -- a preset save coordinates stale-selection protection, local success, and an independently retryable refresh.
   const savePreset = async (presetId?: number) => {
     if (presetSaving) return;
+    const selectionVersion = presetSelectionVersion.current;
     setPresetSaving(true);
     try {
       const saved = await saveMontagePreset(presetName, settings, presetId);
-      setActivePresetId(saved.id);
+      setPresets((current) => {
+        const index = current.findIndex((preset) => preset.id === saved.id);
+        if (index === -1) return [saved, ...current];
+        return current.map((preset) => (preset.id === saved.id ? saved : preset));
+      });
+      if (presetSelectionVersion.current === selectionVersion) {
+        setActivePresetId(saved.id);
+        setPresetName(saved.name);
+      }
       setPresetError(null);
-      await refreshPresets();
+      try {
+        await refreshPresets();
+      } catch (error) {
+        setPresetError(
+          `Preset saved, but could not refresh the list: ${
+            error instanceof Error ? error.message : 'please reload the page.'
+          }`,
+        );
+      }
     } catch (error) {
       setPresetError(error instanceof Error ? error.message : 'Could not save preset.');
     } finally {
@@ -351,17 +385,7 @@ export function MontagePage({
   };
   const dimensions = dimensionsFor(settings.format);
   const totalFrames = montageDurationInFrames(spec);
-  const previewSpec = useMemo<MontageSpec>(() => {
-    const shortestClip = Math.min(...clips.map((clip) => clip.duration_seconds));
-    if (
-      spec.transition !== 'cut' &&
-      Math.max(1, Math.round(shortestClip * montageFps)) <=
-        Math.max(1, Math.round(spec.transitionDuration * montageFps))
-    ) {
-      return { ...spec, transition: 'cut', transitionDuration: 0 };
-    }
-    return spec;
-  }, [clips, spec]);
+  const previewSpec = useMemo<MontageSpec>(() => previewableSpec(spec), [spec]);
   const previewFrames = montageDurationInFrames(previewSpec);
   // fallow-ignore-next-line complexity -- capability handling and render errors must share the same user-visible export state.
   const startExport = async (softwareFallback = false) => {
@@ -377,7 +401,7 @@ export function MontagePage({
           return;
         }
       }
-      setJob(await renderMontage(specRef.current, softwareFallback));
+      setJob(await renderMontage(previewableSpec(specRef.current), softwareFallback));
     } catch (error) {
       setExportError(error instanceof Error ? error.message : 'Could not start the export.');
     } finally {
@@ -466,6 +490,7 @@ export function MontagePage({
               });
           }}
           onClearPreset={() => {
+            presetSelectionVersion.current += 1;
             setActivePresetId(null);
             setPresetName('');
           }}

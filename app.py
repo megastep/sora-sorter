@@ -456,6 +456,11 @@ def validate_montage_transition(spec: dict) -> None:
         raise HTTPException(400, "Transition duration must be shorter than every selected clip.")
 
 
+def is_hardware_acceleration_failure(error: str) -> bool:
+    normalized = error.lower()
+    return "hardware" in normalized or "videotoolbox" in normalized
+
+
 @app.get("/api/montages/capabilities")
 def montage_capabilities():
     global capability_probe
@@ -473,15 +478,19 @@ def montage_capabilities():
                 text=True,
                 timeout=120,
             )
-            capability_probe = (
-                {"accelerated": True}
-                if result.returncode == 0
-                else {
+            if result.returncode == 0:
+                capability_probe = {"accelerated": True}
+            else:
+                reason = result.stderr[-800:] or "The required GPU encoder is unavailable."
+                response = {
                     "accelerated": False,
                     "error_code": "hardware_acceleration_unavailable",
-                    "reason": result.stderr[-800:] or "The required GPU encoder is unavailable.",
+                    "reason": reason,
                 }
-            )
+                if is_hardware_acceleration_failure(reason):
+                    capability_probe = response
+                else:
+                    return response
         except (OSError, subprocess.TimeoutExpired) as error:
             return {
                 "accelerated": False,

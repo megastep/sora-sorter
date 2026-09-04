@@ -72,6 +72,7 @@ export function MontageSettingsPanel(props: Props) {
                   labelId="montage-preset"
                   label="Preset"
                   value={activePresetId ?? ''}
+                  disabled={presetSaving}
                   onChange={(event) => {
                     if (!event.target.value) {
                       props.onClearPreset();

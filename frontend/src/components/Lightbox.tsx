@@ -1,15 +1,17 @@
 import { ArrowBackRounded, ArrowForwardRounded, CloseRounded } from '@mui/icons-material';
 import {
   Box,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   IconButton,
   Tooltip,
   Typography,
 } from '@mui/material';
-import { type KeyboardEvent, useEffect, useRef } from 'react';
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { API, type Video } from '../catalog';
 
 const keyboardOffset: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1 };
@@ -30,15 +32,15 @@ export function Lightbox({
   const video = useRef<HTMLVideoElement | null>(null);
   const resumePlayback = useRef(false);
   const shouldAutoplay = useRef(autoplay);
+  const [autoplayNext, setAutoplayNext] = useState(false);
   const index = Math.max(
     0,
     items.findIndex((candidate) => candidate.id === item.id),
   );
   const hasNeighbors = items.length > 1;
-  const navigate = (value: Video) => {
-    resumePlayback.current = Boolean(
-      video.current && !video.current.paused && !video.current.ended,
-    );
+  const navigate = (value: Video, continuePlayback = false) => {
+    resumePlayback.current =
+      continuePlayback || Boolean(video.current && !video.current.paused && !video.current.ended);
     onSelect(value);
   };
   const selectOffset = (offset: number) =>
@@ -83,6 +85,9 @@ export function Lightbox({
           key={item.id}
           autoPlay={autoplay}
           controls
+          onEnded={() => {
+            if (autoplayNext && index < items.length - 1) navigate(items[index + 1], true);
+          }}
           src={`${API}/videos/${item.id}/media`}
           poster={`${API}/videos/${item.id}/poster`}
           sx={{ display: 'block', width: '100%', maxHeight: '72vh', bgcolor: 'common.black' }}
@@ -100,9 +105,21 @@ export function Lightbox({
             </IconButton>
           </span>
         </Tooltip>
-        <Typography variant="body2" color="text.secondary">
-          Use ← and → to browse
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={autoplayNext}
+                onChange={(event) => setAutoplayNext(event.target.checked)}
+                size="small"
+              />
+            }
+            label="Autoplay next"
+          />
+          <Typography variant="body2" color="text.secondary">
+            Use ← and → to browse
+          </Typography>
+        </Box>
         <Tooltip title="Next video">
           <span>
             <IconButton

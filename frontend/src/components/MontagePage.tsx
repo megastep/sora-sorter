@@ -33,7 +33,13 @@ import {
   type RenderJob,
   type MontagePreset,
 } from '../api';
-import { dimensionsFor, type MontageSettings, type MontageSpec } from '../montage';
+import {
+  defaultMontageSettings,
+  dimensionsFor,
+  settingsFromPreset,
+  type MontageSettings,
+  type MontageSpec,
+} from '../montage';
 import {
   MontageComposition,
   montageDurationInFrames,
@@ -107,24 +113,7 @@ const deletePreset = async (presetId: number, handlers: PresetDeletionHandlers) 
   }
 };
 
-const initialEditorState: MontageSettings = {
-  format: 'landscape',
-  fillMismatchedOrientation: true,
-  title: '',
-  titleSubtitle: '',
-  titleFontSize: 88,
-  titleSubtitleFontSize: 36,
-  transition: 'crossfade',
-  transitionDuration: 0.5,
-  cutColor: '#000000',
-  endPage: {
-    enabled: false,
-    title: 'Thanks for watching',
-    subtitle: '',
-    fontSize: 72,
-    subtitleFontSize: 30,
-  },
-};
+const initialEditorState = defaultMontageSettings;
 
 const editorReducer = (
   state: MontageSettings,
@@ -350,17 +339,13 @@ export function MontagePage({
     if (!active) playerRef.current?.pause();
   }, [active]);
   const settings = editor;
-  const spec = useMemo<MontageSpec>(() => ({ clips, ...settings }), [clips, settings]);
+  const spec = useMemo<MontageSpec>(() => ({ ...settings, clips }), [clips, settings]);
   useEffect(() => {
     specRef.current = spec;
   }, [spec]);
   const applyPreset = (preset: MontagePreset) => {
     presetSelectionVersion.current += 1;
-    const next = preset.settings;
-    dispatchEditor({
-      ...next,
-      fillMismatchedOrientation: next.fillMismatchedOrientation ?? true,
-    });
+    dispatchEditor(settingsFromPreset(preset.settings));
     setActivePresetId(preset.id);
     setPresetName(preset.name);
   };
@@ -381,11 +366,7 @@ export function MontagePage({
     hasInitializedEditor.current = true;
     const preset = presets[0];
     if (preset) {
-      const next = preset.settings;
-      dispatchEditor({
-        ...next,
-        fillMismatchedOrientation: next.fillMismatchedOrientation ?? true,
-      });
+      dispatchEditor(settingsFromPreset(preset.settings));
       setActivePresetId(preset.id);
       setPresetName(preset.name);
       return;

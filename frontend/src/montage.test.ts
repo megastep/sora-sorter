@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { addToSelection, dimensionsFor, toggleSelection, type MontageSpec } from './montage';
+import {
+  addToSelection,
+  defaultMontageSettings,
+  dimensionsFor,
+  settingsFromPreset,
+  toggleSelection,
+  type MontageSpec,
+} from './montage';
 import { montageDurationInFrames } from './remotion/MontageComposition';
 
 describe('ordered montage selection', () => {
@@ -18,6 +25,17 @@ describe('ordered montage selection', () => {
   it('uses the fixed 1080p output dimensions', () => {
     expect(dimensionsFor('landscape')).toEqual({ width: 1920, height: 1080 });
     expect(dimensionsFor('portrait')).toEqual({ width: 1080, height: 1920 });
+  });
+
+  it('does not let legacy preset clips replace the montage selection', () => {
+    const settings = settingsFromPreset({
+      ...defaultMontageSettings,
+      title: 'Legacy preset',
+      clips: [{ id: 'preset-a' }],
+    });
+
+    expect(settings.title).toBe('Legacy preset');
+    expect(settings).not.toHaveProperty('clips');
   });
 
   it('accounts for the intro, non-cut overlap, and optional end page', () => {

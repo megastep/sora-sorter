@@ -34,6 +34,39 @@ export type MontageSpec = {
 
 export type MontageSettings = Omit<MontageSpec, 'clips'>;
 
+export const defaultMontageSettings: MontageSettings = {
+  format: 'landscape',
+  fillMismatchedOrientation: true,
+  title: '',
+  titleSubtitle: '',
+  titleFontSize: 88,
+  titleSubtitleFontSize: 36,
+  transition: 'crossfade',
+  transitionDuration: 0.5,
+  cutColor: '#000000',
+  endPage: {
+    enabled: false,
+    title: 'Thanks for watching',
+    subtitle: '',
+    fontSize: 72,
+    subtitleFontSize: 30,
+  },
+};
+
+export const settingsFromPreset = ({
+  clips: _legacyClips,
+  ...settings
+}: MontageSettings & { clips?: unknown }): MontageSettings => {
+  void _legacyClips;
+  return {
+    ...defaultMontageSettings,
+    ...settings,
+    fillMismatchedOrientation:
+      settings.fillMismatchedOrientation ?? defaultMontageSettings.fillMismatchedOrientation,
+    endPage: { ...defaultMontageSettings.endPage, ...settings.endPage },
+  };
+};
+
 export const dimensionsFor = (format: OutputFormat) =>
   format === 'landscape' ? { width: 1920, height: 1080 } : { width: 1080, height: 1920 };
 

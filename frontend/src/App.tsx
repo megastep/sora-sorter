@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { selectionStorageKey } from './montage';
 import { type ColorMode } from './components/CatalogToolbar';
 import { CatalogPage } from './components/CatalogPage';
-import { MontagePage } from './components/MontagePage';
+import { activeRenderJobStorageKey, MontagePage } from './components/MontagePage';
 import { MontageExportsPage } from './components/MontageExportsPage';
 import { createCatalogTheme } from './theme';
 
@@ -29,7 +29,10 @@ export function App() {
   });
   const navigate = useNavigate();
   const location = useLocation();
-  const [montageMounted, setMontageMounted] = useState(location.pathname === '/montage');
+  const [montageMounted, setMontageMounted] = useState(
+    location.pathname === '/montage' ||
+      Boolean(window.sessionStorage.getItem(activeRenderJobStorageKey)),
+  );
   const theme = useMemo(() => createCatalogTheme(colorMode), [colorMode]);
 
   useEffect(() => {

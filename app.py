@@ -244,6 +244,12 @@ def batch_videos(payload: BatchPayload):
         duration = item.get("duration_seconds")
         if not isinstance(duration, (int, float)) or not math.isfinite(duration) or duration <= 0:
             raise HTTPException(422, f"Video duration is unavailable: {video_id}. Reanalyze the clip before creating a montage.")
+        try:
+            codec = json.loads(str(item["raw_json"])).get("technical", {}).get("video", {}).get("codec")
+        except (KeyError, TypeError, json.JSONDecodeError):
+            codec = None
+        if codec not in {"h264", "vp8", "vp9", "av1"}:
+            raise HTTPException(422, f"Video {item['title'] or video_id} uses an unsupported browser codec. Reencode it to H.264 MP4 before creating a montage.")
         items.append({"id": item["id"], "title": item["title"], "duration_seconds": duration, "width": item.get("width"), "height": item.get("height"), "orientation": item.get("orientation") or "landscape", "media_url": f"/api/videos/{video_id}/media", "poster_url": f"/api/videos/{video_id}/poster"})
     return {"items": items}
 

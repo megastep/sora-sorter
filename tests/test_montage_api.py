@@ -20,7 +20,7 @@ def record(video_id: str, duration: float | None) -> dict:
         "current_path": f"{video_id}.mp4",
         "original_filename": f"{video_id}.mp4",
         "filename": {"proposed_stem": video_id},
-        "technical": {"duration_seconds": duration, "video": {"orientation": "landscape"}},
+        "technical": {"duration_seconds": duration, "video": {"orientation": "landscape", "codec": "h264"}},
         "audio_analysis": {},
         "visual_analysis": {},
     }
@@ -65,6 +65,23 @@ class MontageApiTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 422)
         self.assertIn("duration is unavailable", raised.exception.detail)
+
+    def test_rejects_browser_incompatible_video_codecs_before_montage_preview(self) -> None:
+        database = connect(self.root / "catalog.sqlite")
+        self.addCleanup(database.close)
+        database.execute(
+            "UPDATE videos SET raw_json=json_set(raw_json, '$.technical.video.codec', 'prores') WHERE id=?",
+            (self.first_id,),
+        )
+        database.commit()
+
+        with self.assertRaises(HTTPException) as raised:
+            catalog_app.batch_videos(
+                catalog_app.BatchPayload(ids=[self.first_id, self.second_id])
+            )
+
+        self.assertEqual(raised.exception.status_code, 422)
+        self.assertIn("unsupported browser codec", raised.exception.detail)
 
     def test_rejects_non_finite_media_duration_instead_of_crashing_the_preview(self) -> None:
         item = {

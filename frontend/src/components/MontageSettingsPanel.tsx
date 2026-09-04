@@ -1,4 +1,4 @@
-import { ExpandMoreRounded } from '@mui/icons-material';
+import { DownloadRounded, ExpandMoreRounded } from '@mui/icons-material';
 import {
   Accordion,
   AccordionDetails,
@@ -149,11 +149,13 @@ export function MontageSettingsPanel(props: Props) {
         <TextField
           label="Title"
           value={settings.title}
+          slotProps={{ htmlInput: { maxLength: 200 } }}
           onChange={(event) => props.onChange({ title: event.target.value })}
         />
         <TextField
           label="Title subtext (optional)"
           value={settings.titleSubtitle}
+          slotProps={{ htmlInput: { maxLength: 200 } }}
           onChange={(event) => props.onChange({ titleSubtitle: event.target.value })}
         />
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
@@ -233,11 +235,13 @@ export function MontageSettingsPanel(props: Props) {
             <TextField
               label="End page text"
               value={settings.endPage.title}
+              slotProps={{ htmlInput: { maxLength: 200 } }}
               onChange={(event) => changeEndPage({ title: event.target.value })}
             />
             <TextField
               label="End page subtext (optional)"
               value={settings.endPage.subtitle}
+              slotProps={{ htmlInput: { maxLength: 200 } }}
               onChange={(event) => changeEndPage({ subtitle: event.target.value })}
             />
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
@@ -266,9 +270,15 @@ export function MontageSettingsPanel(props: Props) {
         {job && (
           <Box role="status">
             {job.status === 'completed' ? (
-              <Typography>
-                <a href={`/api/montages/${job.id}/download`}>Download exported MP4</a>
-              </Typography>
+              <Button
+                variant="contained"
+                fullWidth
+                component="a"
+                href={`/api/montages/${job.id}/download`}
+                startIcon={<DownloadRounded />}
+              >
+                Download exported MP4
+              </Button>
             ) : job.status === 'failed' ? (
               <Stack spacing={1}>
                 <Typography color="error.main">{job.error ?? 'Export failed'}</Typography>

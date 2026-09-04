@@ -18,7 +18,8 @@ const formatDuration = (seconds: number | null) => {
 export function MontageExportsPage({ onBack }: { onBack: () => void }) {
   const [exports, setExports] = useState<MontageExport[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<number | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<number>>(() => new Set());
   const refreshVersion = useRef(0);
@@ -30,11 +31,13 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
       .then((items) => {
         if (!mountedRef.current || requestVersion !== refreshVersion.current) return;
         setExports(items.filter((item) => !deletingIdsRef.current.has(item.id)));
-        setError(null);
+        setListError(null);
       })
       .catch((reason: unknown) => {
         if (!mountedRef.current || requestVersion !== refreshVersion.current) return;
-        setError(reason instanceof Error ? reason.message : 'Could not load generated montages.');
+        setListError(
+          reason instanceof Error ? reason.message : 'Could not load generated montages.',
+        );
       })
       .finally(() => {
         if (mountedRef.current && requestVersion === refreshVersion.current) setLoading(false);
@@ -61,9 +64,10 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
       .then(() => {
         setExports((items) => items.filter((item) => item.id !== exportId));
         setPlayingId((current) => (current === exportId ? null : current));
+        setDeleteError(null);
       })
       .catch((reason: unknown) => {
-        setError(reason instanceof Error ? reason.message : 'Could not delete montage.');
+        setDeleteError(reason instanceof Error ? reason.message : 'Could not delete montage.');
       })
       .finally(() => {
         deletingIdsRef.current.delete(exportId);
@@ -87,9 +91,9 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
           <Paper sx={{ p: 3 }}>
             <Typography>Loading generated montages…</Typography>
           </Paper>
-        ) : error && exports.length === 0 ? (
+        ) : listError && exports.length === 0 ? (
           <Paper role="alert" sx={{ p: 3, color: 'error.main' }}>
-            <Typography>{error}</Typography>
+            <Typography>{listError}</Typography>
           </Paper>
         ) : exports.length === 0 ? (
           <Paper sx={{ p: 3 }}>
@@ -150,7 +154,12 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
             </Paper>
           ))
         )}
-        {error && exports.length > 0 && <Typography color="error.main">{error}</Typography>}
+        {deleteError && (
+          <Paper role="alert" sx={{ p: 2, color: 'error.main' }}>
+            <Typography>{deleteError}</Typography>
+          </Paper>
+        )}
+        {listError && exports.length > 0 && <Typography color="error.main">{listError}</Typography>}
       </Stack>
     </Box>
   );

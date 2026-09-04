@@ -55,7 +55,7 @@ const formatDuration = (totalFrames: number) => {
 
 const isMissingRenderJob = (error: unknown) =>
   error instanceof Error && error.message.includes('(404)');
-const activeRenderJobStorageKey = 'video-catalog-active-montage-job';
+export const activeRenderJobStorageKey = 'video-catalog-active-montage-job';
 
 const previewableSpec = (spec: MontageSpec): MontageSpec => {
   const shortestClip = Math.min(...spec.clips.map((clip) => clip.duration_seconds));

@@ -162,7 +162,7 @@ export function CatalogToolbar({
           disabled={importing}
           sx={{ display: { xs: 'none', lg: 'inline-flex' } }}
         >
-          {importing ? 'Importing…' : 'Import / Reimport'}
+          {importing ? 'Importing…' : 'Import'}
         </Button>
         <IconButton
           aria-label="More catalog actions"

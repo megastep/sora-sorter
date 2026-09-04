@@ -124,6 +124,36 @@ function MontageHeader({
   );
 }
 
+function MontageSelectionState({
+  loading,
+  error,
+  onBack,
+  onExports,
+}: {
+  loading: boolean;
+  error: string | null;
+  onBack: () => void;
+  onExports: () => void;
+}) {
+  return (
+    <Box sx={{ p: 4 }}>
+      {loading ? (
+        <Typography>Loading selected clips…</Typography>
+      ) : (
+        <>
+          <Button startIcon={<ArrowBackRounded />} onClick={onBack}>
+            Back to library
+          </Button>
+          <Button onClick={onExports}>Generated videos</Button>
+          <Typography sx={{ mt: 2 }} color={error ? 'error.main' : undefined}>
+            {error ?? 'Choose at least two available clips to create a montage.'}
+          </Typography>
+        </>
+      )}
+    </Box>
+  );
+}
+
 // fallow-ignore-next-line complexity -- editor settings are intentionally colocated with the shared preview state.
 export function MontagePage({
   ids,
@@ -303,22 +333,15 @@ export function MontagePage({
     }
   };
   if (!clipsReady)
-    return (
-      <Box sx={{ p: 4 }}>
-        <Typography>Loading selected clips…</Typography>
-      </Box>
-    );
+    return <MontageSelectionState loading error={null} onBack={onBack} onExports={onExports} />;
   if (clips.length < 2)
     return (
-      <Box sx={{ p: 4 }}>
-        <Button startIcon={<ArrowBackRounded />} onClick={onBack}>
-          Back to library
-        </Button>
-        <Button onClick={onExports}>Generated videos</Button>
-        <Typography sx={{ mt: 2 }} color={clipsError ? 'error.main' : undefined}>
-          {clipsError ?? 'Choose at least two available clips to create a montage.'}
-        </Typography>
-      </Box>
+      <MontageSelectionState
+        loading={false}
+        error={clipsError}
+        onBack={onBack}
+        onExports={onExports}
+      />
     );
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>

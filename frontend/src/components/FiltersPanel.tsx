@@ -1,4 +1,5 @@
 import {
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -29,6 +30,14 @@ const FILTER_CHOICES: Record<string, string[]> = {
 export const keywordCloudFontSize = (count: number, maxCount: number) => {
   if (maxCount <= 1) return 10;
   return 10 + (Math.log(count) / Math.log(maxCount)) * 14;
+};
+
+export const filterKeywordSuggestions = (keywords: KeywordSummary[], query: string) => {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  if (!normalizedQuery) return [];
+  return keywords
+    .filter(({ keyword }) => keyword.toLocaleLowerCase().includes(normalizedQuery))
+    .slice(0, 10);
 };
 
 export function FiltersPanel({
@@ -69,13 +78,36 @@ export function FiltersPanel({
         </Button>
       </Box>
       <Stack spacing={0.25} sx={{ alignItems: 'flex-start' }}>
-        <TextField
-          label="Search"
-          value={filters.q ?? ''}
-          onChange={(event) => set('q', event.target.value)}
-          placeholder="Titles, keywords, transcripts…"
-          size="small"
-          fullWidth
+        <Autocomplete<KeywordSummary, false, false, true>
+          freeSolo
+          openOnFocus={false}
+          options={filterKeywordSuggestions(keywords, filters.q ?? '')}
+          getOptionLabel={(option) => (typeof option === 'string' ? option : option.keyword)}
+          isOptionEqualToValue={(option, value) =>
+            typeof value !== 'string' && option.keyword === value.keyword
+          }
+          onInputChange={(_, value) => set('q', value)}
+          onChange={(_, value) => {
+            if (value && typeof value !== 'string') selectKeyword(value.keyword);
+          }}
+          loading={keywordsLoading}
+          noOptionsText={
+            keywordsError ? 'Could not load keyword suggestions.' : 'No matching keywords'
+          }
+          renderOption={(props, option) => (
+            <Box component="li" {...props} key={option.keyword}>
+              {option.count > 1 ? `${option.keyword} · ${option.count}` : option.keyword}
+            </Box>
+          )}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Search"
+              placeholder="Titles, keywords, transcripts…"
+              size="small"
+              fullWidth
+            />
+          )}
         />
         <Button
           variant="text"

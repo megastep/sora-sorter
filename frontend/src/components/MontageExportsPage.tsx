@@ -5,7 +5,7 @@ import {
   PlayArrowRounded,
 } from '@mui/icons-material';
 import { Box, Button, Paper, Stack, Typography } from '@mui/material';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { deleteMontageExport, fetchMontageExports, type MontageExport } from '../api';
 
 const formatDuration = (seconds: number | null) => {
@@ -14,23 +14,57 @@ const formatDuration = (seconds: number | null) => {
   return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, '0')}`;
 };
 
+// fallow-ignore-next-line complexity -- list refresh generations and per-export deletion locks coordinate asynchronous UI state.
 export function MontageExportsPage({ onBack }: { onBack: () => void }) {
   const [exports, setExports] = useState<MontageExport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<number | null>(null);
+  const [deletingIds, setDeletingIds] = useState<Set<number>>(() => new Set());
+  const refreshVersion = useRef(0);
+  const deletingIdsRef = useRef(new Set<number>());
   useEffect(() => {
-    const loadExports = () =>
+    let mounted = true;
+    const loadExports = () => {
+      const requestVersion = ++refreshVersion.current;
       fetchMontageExports()
-        .then(setExports)
-        .catch((reason: unknown) =>
-          setError(reason instanceof Error ? reason.message : 'Could not load generated montages.'),
-        )
-        .finally(() => setLoading(false));
+        .then((items) => {
+          if (!mounted || requestVersion !== refreshVersion.current) return;
+          setExports(items);
+          setError(null);
+        })
+        .catch((reason: unknown) => {
+          if (!mounted || requestVersion !== refreshVersion.current) return;
+          setError(reason instanceof Error ? reason.message : 'Could not load generated montages.');
+        })
+        .finally(() => {
+          if (mounted && requestVersion === refreshVersion.current) setLoading(false);
+        });
+    };
     void loadExports();
     window.addEventListener('montage-export-completed', loadExports);
-    return () => window.removeEventListener('montage-export-completed', loadExports);
+    return () => {
+      mounted = false;
+      window.removeEventListener('montage-export-completed', loadExports);
+    };
   }, []);
+  const deleteExport = (exportId: number) => {
+    if (deletingIdsRef.current.has(exportId)) return;
+    deletingIdsRef.current.add(exportId);
+    setDeletingIds(new Set(deletingIdsRef.current));
+    void deleteMontageExport(exportId)
+      .then(() => {
+        setExports((items) => items.filter((item) => item.id !== exportId));
+        setPlayingId((current) => (current === exportId ? null : current));
+      })
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : 'Could not delete montage.'),
+      )
+      .finally(() => {
+        deletingIdsRef.current.delete(exportId);
+        setDeletingIds(new Set(deletingIdsRef.current));
+      });
+  };
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto', p: { xs: 2, md: 4 } }}>
       <Button startIcon={<ArrowBackRounded />} onClick={onBack}>
@@ -56,6 +90,7 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
             <Typography>No generated montages yet.</Typography>
           </Paper>
         ) : (
+          // fallow-ignore-next-line complexity -- each export card combines playback, download, and a per-item pending deletion state.
           exports.map((entry) => (
             <Paper key={entry.id} sx={{ p: 2 }}>
               <Stack
@@ -90,20 +125,10 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
                   <Button
                     color="error"
                     startIcon={<DeleteRounded />}
-                    onClick={() =>
-                      void deleteMontageExport(entry.id)
-                        .then(() => {
-                          setExports((items) => items.filter((item) => item.id !== entry.id));
-                          setPlayingId((current) => (current === entry.id ? null : current));
-                        })
-                        .catch((reason: unknown) =>
-                          setError(
-                            reason instanceof Error ? reason.message : 'Could not delete montage.',
-                          ),
-                        )
-                    }
+                    disabled={deletingIds.has(entry.id)}
+                    onClick={() => deleteExport(entry.id)}
                   >
-                    Delete
+                    {deletingIds.has(entry.id) ? 'Deleting…' : 'Delete'}
                   </Button>
                 </Stack>
               </Stack>

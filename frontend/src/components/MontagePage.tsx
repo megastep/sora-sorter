@@ -497,6 +497,11 @@ export function MontagePage({
               setClips(next);
               onReorder(next.map((clip) => clip.id));
             }}
+            onRemove={(clipId) => {
+              const next = clips.filter((clip) => clip.id !== clipId);
+              setClips(next);
+              onReorder(next.map((clip) => clip.id));
+            }}
           />
         </Box>
         <MontageSettingsPanel

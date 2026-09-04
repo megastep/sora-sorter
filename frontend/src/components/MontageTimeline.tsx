@@ -1,4 +1,4 @@
-import { DragIndicatorRounded } from '@mui/icons-material';
+import { DeleteOutlineRounded, DragIndicatorRounded } from '@mui/icons-material';
 import { Box, Button, Paper, Typography } from '@mui/material';
 import { useRef } from 'react';
 import { type MontageClip } from '../montage';
@@ -6,9 +6,11 @@ import { type MontageClip } from '../montage';
 export function MontageTimeline({
   clips,
   onReorder,
+  onRemove,
 }: {
   clips: MontageClip[];
   onReorder: (clips: MontageClip[]) => void;
+  onRemove: (clipId: string) => void;
 }) {
   const draggedId = useRef<string | null>(null);
   const move = (from: number, to: number) => {
@@ -65,6 +67,15 @@ export function MontageTimeline({
                 onClick={() => move(index, index + 1)}
               >
                 →
+              </Button>
+              <Button
+                size="small"
+                color="error"
+                aria-label={`Remove ${clip.title} from montage`}
+                disabled={clips.length <= 2}
+                onClick={() => onRemove(clip.id)}
+              >
+                <DeleteOutlineRounded fontSize="small" />
               </Button>
             </Box>
           </Paper>

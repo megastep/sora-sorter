@@ -1,5 +1,5 @@
 export type OutputFormat = 'landscape' | 'portrait';
-export type TransitionType = 'cut' | 'crossfade' | 'slide' | 'wipe';
+export type TransitionType = 'cut' | 'film-cut' | 'crossfade' | 'slide' | 'wipe';
 
 export type MontageClip = {
   id: string;
@@ -58,9 +58,14 @@ export const settingsFromPreset = ({
   ...settings
 }: MontageSettings & { clips?: unknown }): MontageSettings => {
   void _legacyClips;
+  const transitionDuration =
+    !['cut', 'film-cut'].includes(settings.transition) && settings.transitionDuration < 0.1
+      ? 0.1
+      : settings.transitionDuration;
   return {
     ...defaultMontageSettings,
     ...settings,
+    transitionDuration,
     fillMismatchedOrientation:
       settings.fillMismatchedOrientation ?? defaultMontageSettings.fillMismatchedOrientation,
     endPage: { ...defaultMontageSettings.endPage, ...settings.endPage },

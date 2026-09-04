@@ -117,7 +117,14 @@ class MontageApiTests(unittest.TestCase):
         self.assertEqual(raised.exception.status_code, 400)
         catalog_app.validate_montage_transition(
             {
-                "transition": "cut",
+              "transition": "cut",
+                "transitionDuration": 2,
+                "clips": [{"duration_seconds": 1}, {"duration_seconds": 1}],
+            }
+        )
+        catalog_app.validate_montage_transition(
+            {
+                "transition": "film-cut",
                 "transitionDuration": 2,
                 "clips": [{"duration_seconds": 1}, {"duration_seconds": 1}],
             }
@@ -191,6 +198,24 @@ class MontageApiTests(unittest.TestCase):
 
         self.assertFalse(capability["accelerated"])
         self.assertIsNone(catalog_app.capability_probe)
+
+    def test_capability_probe_uses_and_cleans_up_a_unique_output(self) -> None:
+        seen_outputs: list[Path] = []
+
+        def complete_probe(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+            output = Path(command[-1])
+            seen_outputs.append(output)
+            output.touch()
+            return subprocess.CompletedProcess(command, 0, stderr="")
+
+        with patch("app.subprocess.run", side_effect=complete_probe):
+            capability = catalog_app.montage_capabilities()
+
+        self.assertTrue(capability["accelerated"])
+        self.assertEqual(len(seen_outputs), 1)
+        self.assertEqual(seen_outputs[0].parent.resolve(), (self.root / ".catalog_montages").resolve())
+        self.assertTrue(seen_outputs[0].name.startswith(".acceleration-probe-"))
+        self.assertFalse(seen_outputs[0].exists())
 
     def test_retries_export_persistence_after_a_transient_database_lock(self) -> None:
         job = {

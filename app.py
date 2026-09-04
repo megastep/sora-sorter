@@ -13,6 +13,7 @@ import os
 import re
 import sqlite3
 import subprocess
+import tempfile
 import threading
 import time
 import uuid
@@ -145,14 +146,14 @@ class MontageSettingsPayload(BaseModel):
     titleSubtitle: str = Field(max_length=200)
     titleFontSize: FiniteFloat = Field(ge=32, le=180)
     titleSubtitleFontSize: FiniteFloat = Field(ge=16, le=120)
-    transition: Literal["cut", "crossfade", "slide", "wipe"]
+    transition: Literal["cut", "film-cut", "crossfade", "slide", "wipe"]
     transitionDuration: FiniteFloat = Field(ge=0, le=2)
     cutColor: str = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
     endPage: MontageEndPage
 
     @model_validator(mode="after")
     def validate_transition_duration(self):
-        if self.transition != "cut" and self.transitionDuration < 0.1:
+        if self.transition not in {"cut", "film-cut"} and self.transitionDuration < 0.1:
             raise ValueError("Non-cut transitions must last at least 0.1 seconds")
         return self
 
@@ -436,7 +437,7 @@ def montage_duration_seconds(spec: dict) -> float:
     clip_duration = sum(frame_count(clip.get("duration_seconds") or 0) for clip in clips)
     gaps = max(0, len(clips) - 1)
     transition = optional_frame_count(spec["transitionDuration"])
-    clip_duration += gaps * transition if spec["transition"] == "cut" else -gaps * max(1, transition)
+    clip_duration += gaps * transition if spec["transition"] in {"cut", "film-cut"} else -gaps * max(1, transition)
     total = clip_duration
     if spec["title"]:
         total += frame_count(MONTAGE_PAGE_DURATION_SECONDS) - frame_count(0.5)
@@ -446,7 +447,7 @@ def montage_duration_seconds(spec: dict) -> float:
 
 
 def validate_montage_transition(spec: dict) -> None:
-    if spec["transition"] == "cut":
+    if spec["transition"] in {"cut", "film-cut"}:
         return
     duration_frames = max(1, math.floor(float(spec["transitionDuration"]) * 30 + 0.5))
     if any(
@@ -469,7 +470,14 @@ def montage_capabilities():
             return capability_probe
         root = active_paths().montage_directory
         root.mkdir(parents=True, exist_ok=True)
-        probe_output = root / ".acceleration-probe.mp4"
+        probe_descriptor, probe_path = tempfile.mkstemp(
+            dir=root,
+            prefix=".acceleration-probe-",
+            suffix=".mp4",
+        )
+        os.close(probe_descriptor)
+        probe_output = Path(probe_path)
+        probe_output.unlink()
         try:
             result = subprocess.run(
                 ["node", "render.mjs", "--probe", str(probe_output)],

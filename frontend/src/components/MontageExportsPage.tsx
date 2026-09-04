@@ -50,6 +50,7 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
   }, []);
   const deleteExport = (exportId: number) => {
     if (deletingIdsRef.current.has(exportId)) return;
+    refreshVersion.current += 1;
     deletingIdsRef.current.add(exportId);
     setDeletingIds(new Set(deletingIdsRef.current));
     void deleteMontageExport(exportId)

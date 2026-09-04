@@ -53,6 +53,7 @@ export function MontageSettingsPanel(props: Props) {
     presetError,
     presetSaving,
   } = props;
+  const minimumTransitionDuration = ['cut', 'film-cut'].includes(settings.transition) ? 0 : 0.1;
   const changeEndPage = (patch: Partial<MontageSettings['endPage']>) =>
     props.onChange({ endPage: { ...settings.endPage, ...patch } });
 
@@ -103,19 +104,19 @@ export function MontageSettingsPanel(props: Props) {
                   onClick={() => props.onSavePreset()}
                   disabled={!presetName.trim() || presetSaving}
                 >
-                  Save new preset
+                  Save new
                 </Button>
                 <Button
                   variant="outlined"
                   onClick={() => activePresetId && props.onSavePreset(activePresetId)}
                   disabled={!activePresetId || !presetName.trim() || presetSaving}
                 >
-                  Update preset
+                  Update
                 </Button>
               </Box>
               {activePresetId && (
                 <Button color="error" disabled={presetSaving} onClick={props.onDeletePreset}>
-                  Delete preset
+                  Delete
                 </Button>
               )}
             </Stack>
@@ -173,24 +174,35 @@ export function MontageSettingsPanel(props: Props) {
             labelId="transition"
             label="Transition"
             value={settings.transition}
-            onChange={(event) =>
-              props.onChange({ transition: event.target.value as TransitionType })
-            }
+            onChange={(event) => {
+              const transition = event.target.value as TransitionType;
+              props.onChange({
+                transition,
+                ...(!['cut', 'film-cut'].includes(transition) && settings.transitionDuration < 0.1
+                  ? { transitionDuration: 0.1 }
+                  : {}),
+              });
+            }}
           >
             <MenuItem value="cut">Cut</MenuItem>
+            <MenuItem value="film-cut">Film Cut</MenuItem>
             <MenuItem value="crossfade">Crossfade</MenuItem>
             <MenuItem value="slide">Slide</MenuItem>
             <MenuItem value="wipe">Wipe</MenuItem>
           </Select>
         </FormControl>
         <TextField
-          label={`${settings.transition === 'cut' ? 'Cut' : 'Transition'} duration (seconds)`}
+          label={`${['cut', 'film-cut'].includes(settings.transition) ? 'Cut' : 'Transition'} duration (seconds)`}
           type="number"
           value={settings.transitionDuration}
-          slotProps={{ htmlInput: { min: 0, max: 2, step: 0.1 } }}
-          onChange={(event) => props.onChange({ transitionDuration: Number(event.target.value) })}
+          slotProps={{ htmlInput: { min: minimumTransitionDuration, max: 2, step: 0.1 } }}
+          onChange={(event) =>
+            props.onChange({
+              transitionDuration: Math.max(minimumTransitionDuration, Number(event.target.value)),
+            })
+          }
         />
-        {settings.transition === 'cut' && (
+        {['cut', 'film-cut'].includes(settings.transition) && (
           <TextField
             label="Cut frame color"
             type="color"

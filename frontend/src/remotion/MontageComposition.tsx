@@ -21,6 +21,99 @@ const optionalFrames = (seconds: number) => Math.max(0, Math.round(seconds * fps
 const pageTransitionFrames = frames(0.5);
 const endBlurFrames = frames(1);
 const pageDurationFrames = frames(3);
+const filmSprockets = {
+  background:
+    'repeating-linear-gradient(90deg, #f4d77d 0 15px, #17130c 15px 29px, #f4d77d 29px 44px)',
+  height: '11%',
+};
+const isCutTransition = (transition: MontageSpec['transition']) =>
+  transition === 'cut' || transition === 'film-cut';
+const filmVariation = (seed: number) => Math.abs(Math.sin(seed * 12.9898) * 43758.5453) % 1;
+
+function FilmCut({
+  color,
+  seed,
+  src,
+  freezeFrame,
+}: {
+  color: string;
+  seed: number;
+  src: string;
+  freezeFrame: number;
+}) {
+  const frame = useCurrentFrame();
+  const flashFrames = 2 + Math.round(filmVariation(seed) * 3);
+  const flashOpacity = interpolate(
+    frame,
+    [0, 1, flashFrames],
+    [1, 0.2 + filmVariation(seed + 1) * 0.4, 0],
+    {
+      extrapolateRight: 'clamp',
+    },
+  );
+  const scratchPosition = `${(frame * (11 + filmVariation(seed + 2) * 18) + filmVariation(seed + 3) * 100) % 100}%`;
+  const sprocketOffset = Math.round(filmVariation(seed + 4) * 28);
+  const grainOffset = `${Math.round((frame * 23 + filmVariation(seed + 7) * 100) % 100)}px ${Math.round((frame * 41 + filmVariation(seed + 8) * 100) % 100)}px`;
+  return (
+    <AbsoluteFill
+      style={{
+        background: color,
+        border: '10px solid #f4d77d',
+        boxShadow: 'inset 0 0 0 14px #17130c',
+        color: '#f4d77d',
+        filter: `hue-rotate(${Math.round(filmVariation(seed + 5) * 36 - 18)}deg)`,
+        fontFamily: 'ui-monospace, monospace',
+        fontWeight: 800,
+      }}
+    >
+      <Freeze frame={freezeFrame}>
+        <Video
+          src={src}
+          muted
+          style={{
+            filter: `blur(${8 + filmVariation(seed + 9) * 8}px) brightness(.32) saturate(.55)`,
+            height: '100%',
+            inset: 0,
+            objectFit: 'cover',
+            opacity: 0.65,
+            position: 'absolute',
+            transform: 'scale(1.12)',
+            width: '100%',
+          }}
+        />
+      </Freeze>
+      <AbsoluteFill
+        style={{
+          backgroundImage:
+            'repeating-radial-gradient(circle, rgba(255,255,255,.36) 0 1px, transparent 1px 3px)',
+          backgroundPosition: grainOffset,
+          mixBlendMode: 'screen',
+          opacity: 0.24,
+        }}
+      />
+      <div style={{ ...filmSprockets, backgroundPosition: `${sprocketOffset}px 0` }} />
+      <div style={{ flex: 1 }} />
+      <div
+        style={{
+          background: 'rgba(244, 215, 125, .7)',
+          height: '100%',
+          left: scratchPosition,
+          position: 'absolute',
+          top: 0,
+          width: 2 + Math.round(filmVariation(seed + 6) * 3),
+        }}
+      />
+      <div
+        style={{
+          ...filmSprockets,
+          backgroundPosition: `${-sprocketOffset}px 0`,
+          marginTop: 'auto',
+        }}
+      />
+      <AbsoluteFill style={{ background: '#fff6ce', opacity: flashOpacity }} />
+    </AbsoluteFill>
+  );
+}
 
 function FittedVideo({
   src,
@@ -199,14 +292,13 @@ function TitleCard({
 
 export function montageDurationInFrames(spec: MontageSpec) {
   const clipFrames = spec.clips.reduce((sum, clip) => sum + frames(clip.duration_seconds), 0);
-  const overlaps =
-    spec.transition === 'cut'
-      ? Math.max(0, spec.clips.length - 1) * optionalFrames(spec.transitionDuration)
-      : Math.max(0, spec.clips.length - 1) * frames(spec.transitionDuration);
+  const overlaps = isCutTransition(spec.transition)
+    ? Math.max(0, spec.clips.length - 1) * optionalFrames(spec.transitionDuration)
+    : Math.max(0, spec.clips.length - 1) * frames(spec.transitionDuration);
   return (
     (spec.title ? pageDurationFrames : 0) +
     clipFrames +
-    (spec.transition === 'cut' ? overlaps : -overlaps) +
+    (isCutTransition(spec.transition) ? overlaps : -overlaps) +
     (spec.endPage.enabled ? pageDurationFrames : 0) -
     (spec.title ? pageTransitionFrames : 0) -
     (spec.endPage.enabled ? pageTransitionFrames : 0)
@@ -233,9 +325,11 @@ export function MontageComposition({ spec }: { spec: MontageSpec }) {
                 <TimedFittedVideo
                   src={clip.media_url}
                   durationInFrames={frames(clip.duration_seconds)}
-                  audioFadeInFrames={spec.transition !== 'cut' && index > 0 ? transitionFrames : 0}
+                  audioFadeInFrames={
+                    !isCutTransition(spec.transition) && index > 0 ? transitionFrames : 0
+                  }
                   audioFadeOutFrames={
-                    spec.transition !== 'cut' && index < spec.clips.length - 1
+                    !isCutTransition(spec.transition) && index < spec.clips.length - 1
                       ? transitionFrames
                       : 0
                   }
@@ -248,10 +342,19 @@ export function MontageComposition({ spec }: { spec: MontageSpec }) {
                 />
               </TransitionSeries.Sequence>
               {index < spec.clips.length - 1 &&
-                (spec.transition === 'cut' ? (
+                (isCutTransition(spec.transition) ? (
                   cutFrames > 0 ? (
                     <TransitionSeries.Sequence durationInFrames={cutFrames}>
-                      <AbsoluteFill style={{ background: spec.cutColor }} />
+                      {spec.transition === 'film-cut' ? (
+                        <FilmCut
+                          color={spec.cutColor}
+                          seed={index + 1}
+                          src={clip.media_url}
+                          freezeFrame={Math.max(0, frames(clip.duration_seconds) - 1)}
+                        />
+                      ) : (
+                        <AbsoluteFill style={{ background: spec.cutColor }} />
+                      )}
                     </TransitionSeries.Sequence>
                   ) : null
                 ) : (

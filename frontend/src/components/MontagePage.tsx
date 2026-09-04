@@ -273,6 +273,56 @@ function useActiveRenderJob(setExportError: Dispatch<SetStateAction<string | nul
   return [job, setJob] as const;
 }
 
+function MontagePreview({
+  playerRef,
+  spec,
+  previewSpec,
+  previewFrames,
+  dimensions,
+  clips,
+  onTimelineChange,
+}: {
+  playerRef: { current: PlayerRef | null };
+  spec: MontageSpec;
+  previewSpec: MontageSpec;
+  previewFrames: number;
+  dimensions: { width: number; height: number };
+  clips: MontageSpec['clips'];
+  onTimelineChange: (clips: MontageSpec['clips']) => void;
+}) {
+  return (
+    <Box sx={{ display: 'grid', gap: 2, minWidth: 0 }}>
+      <Paper sx={{ p: 1, bgcolor: 'common.black' }}>
+        <Player
+          ref={playerRef}
+          component={MontageComposition}
+          inputProps={{ spec: previewSpec }}
+          durationInFrames={previewFrames}
+          compositionWidth={dimensions.width}
+          compositionHeight={dimensions.height}
+          fps={montageFps}
+          acknowledgeRemotionLicense
+          initiallyMuted={false}
+          autoPlay={false}
+          _experimentalKeepAudioContextAlive
+          controls
+          style={{ width: '100%', aspectRatio: `${dimensions.width}/${dimensions.height}` }}
+        />
+        {previewSpec !== spec && (
+          <Typography color="warning.main" variant="caption">
+            Preview uses cuts because the selected transition is longer than a clip.
+          </Typography>
+        )}
+      </Paper>
+      <MontageTimeline
+        clips={clips}
+        onReorder={onTimelineChange}
+        onRemove={(clipId) => onTimelineChange(clips.filter((clip) => clip.id !== clipId))}
+      />
+    </Box>
+  );
+}
+
 // fallow-ignore-next-line complexity -- editor settings are intentionally colocated with the shared preview state.
 export function MontagePage({
   ids,
@@ -304,6 +354,7 @@ export function MontagePage({
   const [presetsError, setPresetsError] = useState<string | null>(null);
   const hasInitializedEditor = useRef(false);
   const presetSelectionVersion = useRef(0);
+  const presetUseQueue = useRef<Promise<void> | null>(null);
   const playerRef = useRef<PlayerRef>(null);
   const specRef = useRef<MontageSpec>({ clips: [], ...initialEditorState });
   const clipMembershipKey = useMemo(() => [...ids].sort().join('\u0000'), [ids]);
@@ -344,10 +395,11 @@ export function MontagePage({
     specRef.current = spec;
   }, [spec]);
   const applyPreset = (preset: MontagePreset) => {
-    presetSelectionVersion.current += 1;
+    const selectionVersion = ++presetSelectionVersion.current;
     dispatchEditor(settingsFromPreset(preset.settings));
     setActivePresetId(preset.id);
     setPresetName(preset.name);
+    return selectionVersion;
   };
   useEffect(() => {
     void fetchMontagePresets()
@@ -376,7 +428,11 @@ export function MontagePage({
       format: clips[0]?.orientation === 'portrait' ? 'portrait' : 'landscape',
     });
   }, [clips, clipsReady, presets, presetsReady]);
-  const refreshPresets = async () => setPresets(await fetchMontagePresets());
+  const refreshPresets = async (selectionVersion?: number) => {
+    const items = await fetchMontagePresets();
+    if (selectionVersion === undefined || selectionVersion === presetSelectionVersion.current)
+      setPresets(items);
+  };
   // fallow-ignore-next-line complexity -- a preset save coordinates stale-selection protection, local success, and an independently retryable refresh.
   const savePreset = async (presetId?: number) => {
     if (presetSaving) return;
@@ -470,42 +526,18 @@ export function MontagePage({
           p: { xs: 2, lg: 3 },
         }}
       >
-        <Box sx={{ display: 'grid', gap: 2, minWidth: 0 }}>
-          <Paper sx={{ p: 1, bgcolor: 'common.black' }}>
-            <Player
-              ref={playerRef}
-              component={MontageComposition}
-              inputProps={{ spec: previewSpec }}
-              durationInFrames={previewFrames}
-              compositionWidth={dimensions.width}
-              compositionHeight={dimensions.height}
-              fps={montageFps}
-              acknowledgeRemotionLicense
-              initiallyMuted={false}
-              autoPlay={false}
-              _experimentalKeepAudioContextAlive
-              controls
-              style={{ width: '100%', aspectRatio: `${dimensions.width}/${dimensions.height}` }}
-            />
-            {previewSpec !== spec && (
-              <Typography color="warning.main" variant="caption">
-                Preview uses cuts because the selected transition is longer than a clip.
-              </Typography>
-            )}
-          </Paper>
-          <MontageTimeline
-            clips={clips}
-            onReorder={(next) => {
-              setClips(next);
-              onReorder(next.map((clip) => clip.id));
-            }}
-            onRemove={(clipId) => {
-              const next = clips.filter((clip) => clip.id !== clipId);
-              setClips(next);
-              onReorder(next.map((clip) => clip.id));
-            }}
-          />
-        </Box>
+        <MontagePreview
+          playerRef={playerRef}
+          spec={spec}
+          previewSpec={previewSpec}
+          previewFrames={previewFrames}
+          dimensions={dimensions}
+          clips={clips}
+          onTimelineChange={(next) => {
+            setClips(next);
+            onReorder(next.map((clip) => clip.id));
+          }}
+        />
         <MontageSettingsPanel
           settings={settings}
           presets={presets}
@@ -522,14 +554,19 @@ export function MontagePage({
             setPresetError(null);
           }}
           onSelectPreset={(preset) => {
-            applyPreset(preset);
-            void markMontagePresetUsed(preset.id)
-              .then(refreshPresets)
+            const selectionVersion = applyPreset(preset);
+            presetUseQueue.current = (presetUseQueue.current ?? Promise.resolve())
+              .catch(() => undefined)
+              .then(async () => {
+                await markMontagePresetUsed(preset.id);
+                await refreshPresets(selectionVersion);
+              })
               .catch((error: unknown) => {
+                if (selectionVersion !== presetSelectionVersion.current) return;
                 setPresetError(
                   error instanceof Error ? error.message : 'Could not save preset recency.',
                 );
-                void refreshPresets();
+                void refreshPresets(selectionVersion);
               });
           }}
           onClearPreset={() => {

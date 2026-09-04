@@ -38,6 +38,16 @@ describe('ordered montage selection', () => {
     expect(settings).not.toHaveProperty('clips');
   });
 
+  it('raises legacy non-cut transition durations to the export minimum', () => {
+    expect(
+      settingsFromPreset({
+        ...defaultMontageSettings,
+        transition: 'crossfade',
+        transitionDuration: 0,
+      }),
+    ).toMatchObject({ transitionDuration: 0.1 });
+  });
+
   it('accounts for the intro, non-cut overlap, and optional end page', () => {
     const spec: MontageSpec = {
       clips: [
@@ -87,5 +97,8 @@ describe('ordered montage selection', () => {
     expect(montageDurationInFrames({ ...spec, transition: 'cut', transitionDuration: 0.5 })).toBe(
       345,
     );
+    expect(
+      montageDurationInFrames({ ...spec, transition: 'film-cut', transitionDuration: 0.5 }),
+    ).toBe(345);
   });
 });

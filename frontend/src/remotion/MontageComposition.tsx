@@ -1,12 +1,13 @@
 import {
   AbsoluteFill,
+  Audio,
   Freeze,
   interpolate,
   Sequence,
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import { Audio, Video } from '@remotion/media';
+import { Video } from '@remotion/media';
 import { Fragment } from 'react';
 import { TransitionSeries, linearTiming } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
@@ -98,7 +99,7 @@ function TimedFittedVideo({
   return (
     <>
       <FittedVideo src={src} muted showBackdrop={showBackdrop} />
-      <Audio src={src} volume={fadeIn * fadeOut} />
+      <Audio src={src} volume={fadeIn * fadeOut} useWebAudioApi={false} />
     </>
   );
 }
@@ -174,7 +175,6 @@ function TitleCard({
         opacity: cardOpacity,
       }}
     >
-      {reveal && <Audio src={src} volume={0} />}
       <Freeze frame={freezeFrame}>
         <FittedVideo
           src={src}

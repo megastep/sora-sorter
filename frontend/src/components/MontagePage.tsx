@@ -483,6 +483,7 @@ export function MontagePage({
               acknowledgeRemotionLicense
               initiallyMuted={false}
               autoPlay={false}
+              _experimentalKeepAudioContextAlive
               controls
               style={{ width: '100%', aspectRatio: `${dimensions.width}/${dimensions.height}` }}
             />

@@ -481,6 +481,7 @@ export function MontagePage({
               compositionHeight={dimensions.height}
               fps={montageFps}
               acknowledgeRemotionLicense
+              initiallyMuted={false}
               controls
               style={{ width: '100%', aspectRatio: `${dimensions.width}/${dimensions.height}` }}
             />

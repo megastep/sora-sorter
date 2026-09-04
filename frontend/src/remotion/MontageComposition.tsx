@@ -6,7 +6,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import { Video } from '@remotion/media';
+import { Audio, Video } from '@remotion/media';
 import { Fragment } from 'react';
 import { TransitionSeries, linearTiming } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
@@ -28,7 +28,6 @@ function FittedVideo({
   showForeground = true,
   backdropBlur = 28,
   foregroundOpacity = 1,
-  volume = 1,
 }: {
   src: string;
   muted?: boolean;
@@ -36,7 +35,6 @@ function FittedVideo({
   showForeground?: boolean;
   backdropBlur?: number;
   foregroundOpacity?: number;
-  volume?: number;
 }) {
   return (
     <AbsoluteFill style={{ background: '#000', overflow: 'hidden' }}>
@@ -59,7 +57,6 @@ function FittedVideo({
         <Video
           src={src}
           muted={muted}
-          volume={volume}
           style={{
             position: 'absolute',
             inset: 0,
@@ -98,7 +95,12 @@ function TimedFittedVideo({
           extrapolateLeft: 'clamp',
         })
       : 1;
-  return <FittedVideo src={src} showBackdrop={showBackdrop} volume={fadeIn * fadeOut} />;
+  return (
+    <>
+      <FittedVideo src={src} muted showBackdrop={showBackdrop} />
+      <Audio src={src} volume={fadeIn * fadeOut} />
+    </>
+  );
 }
 
 // fallow-ignore-next-line complexity -- shared animated title/end-card component keeps timing identical for preview and export.

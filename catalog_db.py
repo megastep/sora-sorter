@@ -257,6 +257,11 @@ def delete_montage_export(db: sqlite3.Connection, export_id: int) -> None:
             raise KeyError(export_id)
 
 
+def delete_montage_export_by_job(db: sqlite3.Connection, job_id: str) -> None:
+    with db:
+        db.execute("DELETE FROM montage_exports WHERE job_id=?", (job_id,))
+
+
 def restore_montage_export(db: sqlite3.Connection, entry: dict[str, Any]) -> None:
     with db:
         db.execute(

@@ -323,6 +323,35 @@ function MontagePreview({
   );
 }
 
+function AccelerationDialog({
+  active,
+  reason,
+  exportStarting,
+  onClose,
+  onSoftwareFallback,
+}: {
+  active: boolean;
+  reason: string | null;
+  exportStarting: boolean;
+  onClose: () => void;
+  onSoftwareFallback: () => void;
+}) {
+  return (
+    <Dialog open={active && Boolean(reason)} onClose={onClose}>
+      <DialogTitle>Hardware acceleration unavailable</DialogTitle>
+      <DialogContent>
+        <Typography>{reason}</Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="contained" disabled={exportStarting} onClick={onSoftwareFallback}>
+          Export with software fallback
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // fallow-ignore-next-line complexity -- editor settings are intentionally colocated with the shared preview state.
 export function MontagePage({
   ids,
@@ -353,6 +382,7 @@ export function MontagePage({
   const [presetsReady, setPresetsReady] = useState(false);
   const [presetsError, setPresetsError] = useState<string | null>(null);
   const hasInitializedEditor = useRef(false);
+  const applyRecoveredPreset = useRef(false);
   const presetSelectionVersion = useRef(0);
   const presetUseQueue = useRef<Promise<void> | null>(null);
   const playerRef = useRef<PlayerRef>(null);
@@ -403,16 +433,29 @@ export function MontagePage({
     return selectionVersion;
   };
   useEffect(() => {
+    if (!active) return;
+    let isCurrent = true;
     void fetchMontagePresets()
       .then((items) => {
+        if (!isCurrent) return;
         setPresets(items);
+        setPresetsError(null);
         setPresetsReady(true);
+        if (applyRecoveredPreset.current && items[0]) {
+          hasInitializedEditor.current = false;
+          applyRecoveredPreset.current = false;
+        }
       })
       .catch((error: unknown) => {
+        if (!isCurrent) return;
         setPresetsError(error instanceof Error ? error.message : 'Could not load presets.');
         setPresetsReady(true);
+        applyRecoveredPreset.current = true;
       });
-  }, []);
+    return () => {
+      isCurrent = false;
+    };
+  }, [active]);
   // fallow-ignore-next-line complexity -- initial editor settings must atomically account for both loaded clips and presets.
   useEffect(() => {
     if (hasInitializedEditor.current || !clipsReady || !presetsReady || clips.length < 2) return;
@@ -592,28 +635,16 @@ export function MontagePage({
           onSoftwareFallback={() => void startExport(true)}
         />
       </Box>
-      <Dialog
-        open={active && Boolean(accelerationReason)}
+      <AccelerationDialog
+        active={active}
+        reason={accelerationReason}
+        exportStarting={exportStarting}
         onClose={() => setAccelerationReason(null)}
-      >
-        <DialogTitle>Hardware acceleration unavailable</DialogTitle>
-        <DialogContent>
-          <Typography>{accelerationReason}</Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAccelerationReason(null)}>Cancel</Button>
-          <Button
-            variant="contained"
-            disabled={exportStarting}
-            onClick={() => {
-              setAccelerationReason(null);
-              void startExport(true);
-            }}
-          >
-            Export with software fallback
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onSoftwareFallback={() => {
+          setAccelerationReason(null);
+          void startExport(true);
+        }}
+      />
     </Box>
   );
 }

@@ -81,7 +81,38 @@ class MontageApiTests(unittest.TestCase):
             )
 
         self.assertEqual(raised.exception.status_code, 422)
-        self.assertIn("unsupported browser codec", raised.exception.detail)
+        self.assertIn("unsupported browser media format", raised.exception.detail)
+
+    def test_rejects_browser_incompatible_audio_and_containers_before_montage_preview(self) -> None:
+        database = connect(self.root / "catalog.sqlite")
+        self.addCleanup(database.close)
+        database.execute(
+            "UPDATE videos SET raw_json=json_set(raw_json, '$.technical.audio.codec', 'ac3') WHERE id=?",
+            (self.first_id,),
+        )
+        database.commit()
+
+        with self.assertRaises(HTTPException) as raised:
+            catalog_app.batch_videos(catalog_app.BatchPayload(ids=[self.first_id, self.second_id]))
+
+        self.assertEqual(raised.exception.status_code, 422)
+        self.assertIn("audio codec ac3", raised.exception.detail)
+
+        database.execute("UPDATE videos SET current_path=? WHERE id=?", (f"{self.first_id}.mov", self.first_id))
+        database.execute(
+            "UPDATE videos SET raw_json=json_remove(raw_json, '$.technical.audio.codec') WHERE id=?",
+            (self.first_id,),
+        )
+        database.commit()
+        (self.root / f"{self.first_id}.mov").touch()
+
+        with self.assertRaises(HTTPException) as raised:
+            catalog_app.batch_videos(catalog_app.BatchPayload(ids=[self.first_id, self.second_id]))
+
+        self.assertIn("container mov", raised.exception.detail)
+
+    def test_serves_the_source_media_type(self) -> None:
+        self.assertEqual(catalog_app.media(self.first_id).media_type, "video/mp4")
 
     def test_rejects_non_finite_media_duration_instead_of_crashing_the_preview(self) -> None:
         item = {
@@ -172,6 +203,81 @@ class MontageApiTests(unittest.TestCase):
         status = catalog_app.montage_status(job_id)
         self.assertEqual(status["status"], "failed")
         self.assertEqual(status["error_code"], "render_failed")
+
+    def test_output_reader_start_failure_marks_the_job_failed_and_terminates_renderer(self) -> None:
+        class Process:
+            stdout = iter(())
+
+            def __init__(self) -> None:
+                self.terminated = False
+
+            def poll(self) -> None:
+                return None
+
+            def terminate(self) -> None:
+                self.terminated = True
+
+            def wait(self, timeout: float | None = None) -> int:
+                return 1
+
+        job_id = "job"
+        request_path = self.root / "request.json"
+        request_path.write_text("{}", encoding="utf-8")
+        catalog_app.jobs[job_id] = {
+            "id": job_id,
+            "status": "queued",
+            "output": str(self.root / "result.mp4"),
+        }
+        process = Process()
+
+        with patch("app.subprocess.Popen", return_value=process), patch("app.threading.Thread") as thread:
+            thread.return_value.start.side_effect = RuntimeError("no threads")
+            catalog_app._render_job(job_id, request_path)
+
+        status = catalog_app.montage_status(job_id)
+        self.assertEqual(status["status"], "failed")
+        self.assertEqual(status["error_code"], "render_failed")
+        self.assertTrue(process.terminated)
+
+    def test_server_shutdown_terminates_active_renderer_and_removes_staging_artifacts(self) -> None:
+        class Process:
+            def __init__(self) -> None:
+                self.terminated = False
+
+            def poll(self) -> None:
+                return None
+
+            def terminate(self) -> None:
+                self.terminated = True
+
+            def wait(self, timeout: float | None = None) -> int:
+                return 1
+
+        job_id = "job"
+        request_path = self.root / "request.json"
+        rendered_output = self.root / ".rendering.mp4"
+        request_path.write_text("{}", encoding="utf-8")
+        rendered_output.touch()
+        process = Process()
+        catalog_app.jobs[job_id] = {
+            "id": job_id,
+            "status": "rendering",
+            "output": str(self.root / "result.mp4"),
+            "render_output": str(rendered_output),
+        }
+        catalog_app.render_processes[job_id] = (process, request_path, rendered_output)
+
+        catalog_app.stop_renderers()
+
+        self.assertTrue(process.terminated)
+        self.assertEqual(catalog_app.montage_status(job_id)["status"], "failed")
+        self.assertFalse(request_path.exists())
+        self.assertFalse(rendered_output.exists())
+        self.assertNotIn(job_id, catalog_app.render_processes)
+
+    def test_rejects_a_montage_directory_that_contains_the_library(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must not be the library root"):
+            catalog_app.catalog_paths(self.root, montage_directory=self.root.parent)
 
     def test_renderer_timeout_marks_the_job_failed_and_terminates_it(self) -> None:
         class HangingProcess:

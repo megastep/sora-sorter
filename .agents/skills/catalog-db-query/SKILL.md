@@ -46,7 +46,8 @@ Prefer --library-root so the tool derives <library-root>/catalog.sqlite. Use
       --server http://127.0.0.1:8765 generate \
       --preset "Social portrait" <first-video-id> <second-video-id>
 
-    # Optionally download the completed artifact, or queue and inspect later.
+    # A completed render returns its local artifact_path directly. Optionally
+    # copy it elsewhere with --output, or queue and inspect later.
     uv run python .agents/skills/catalog-db-query/scripts/query_catalog.py \
       --server http://127.0.0.1:8765 generate --preset 3 \
       --output ./montage.mp4 <first-video-id> <second-video-id>
@@ -63,7 +64,8 @@ Prefer --library-root so the tool derives <library-root>/catalog.sqlite. Use
 
 Video IDs after `generate` are ordered: the first ID is the first clip. Provide
 at least two unique IDs. Resolve the requested preset before starting and report
-the preset, ordered IDs, job status, and download URL or output path. Use
+the preset, ordered IDs, job status, and local artifact_path (or --output path
+when one was requested). Use
 `--software-fallback` only after hardware acceleration is unavailable and the
 user explicitly accepts the fallback. Use `--force` only when the user has
 explicitly authorized replacing the requested download path.

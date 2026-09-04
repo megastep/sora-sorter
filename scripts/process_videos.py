@@ -95,6 +95,7 @@ def technical_metadata(probe: dict[str, Any]) -> dict[str, Any]:
     orientation = "square" if display_width == display_height else "landscape" if display_width > display_height else "portrait"
     format_info = probe.get("format") or {}
     return {
+        "container": format_info.get("format_name"),
         "duration_seconds": round(float(format_info.get("duration") or 0), 3),
         "size_bytes": int(format_info.get("size") or 0),
         "bit_rate": int(format_info.get("bit_rate") or 0),
@@ -499,6 +500,8 @@ def main() -> int:
         if args.montage_directory
         else (root / ".catalog_montages").resolve()
     )
+    if root.is_relative_to(montage):
+        raise SystemExit("--montage-directory must not be the library root or one of its ancestors")
     if args.deduplicate:
         result = deduplicate(root, processed, duplicates, output, montage, args.dry_run)
         print(f"Deduplication: groups={result['groups']}, {'would_move' if args.dry_run else 'moved'}={result['moved']}; manifest: {output / 'deduplication.json'}", flush=True)

@@ -27,7 +27,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, FiniteFloat, model_validator
 
-from catalog_db import _effective, connect, delete_montage_export, delete_montage_preset, import_directory, initialize, list_content_flags, list_keywords, list_montage_exports, list_montage_presets, list_video_ids, list_videos, montage_export, record_montage_export, restore_montage_export, save_montage_preset, update, use_montage_preset
+from catalog_db import _effective, connect, delete_montage_export, delete_montage_export_by_job, delete_montage_preset, import_directory, initialize, list_content_flags, list_keywords, list_montage_exports, list_montage_presets, list_video_ids, list_videos, montage_export, record_montage_export, restore_montage_export, save_montage_preset, update, use_montage_preset
 
 
 @dataclass(frozen=True)
@@ -62,12 +62,15 @@ def catalog_paths(library_root: str | Path, database_path: str | Path | None = N
     root = resolve_path(library_root)
     if not root.is_dir():
         raise ValueError(f"Video library does not exist or is not a directory: {root}")
+    montage_root = resolve_path(montage_directory) if montage_directory else root / ".catalog_montages"
+    if root.is_relative_to(montage_root):
+        raise ValueError("Montage directory must not be the library root or one of its ancestors")
     return CatalogPaths(
         library_root=root,
         database_path=resolve_path(database_path) if database_path else root / "catalog.sqlite",
         json_directory=resolve_path(json_directory) if json_directory else root / "video_catalog_json",
         poster_directory=resolve_path(poster_directory) if poster_directory else root / ".catalog_posters",
-        montage_directory=resolve_path(montage_directory) if montage_directory else root / ".catalog_montages",
+        montage_directory=montage_root,
     )
 
 
@@ -75,9 +78,10 @@ paths: CatalogPaths | None = None
 
 
 def configure(value: CatalogPaths) -> None:
-    global paths
+    global paths, server_stopping
     value.database_path.parent.mkdir(parents=True, exist_ok=True)
     paths = value
+    server_stopping = False
 
 
 def active_paths() -> CatalogPaths:
@@ -176,9 +180,53 @@ class MontagePresetPayload(BaseModel):
     settings: MontageSettingsPayload
 
 
+def media_type_for(source: Path) -> str:
+    return {
+        ".mp4": "video/mp4",
+        ".m4v": "video/x-m4v",
+        ".webm": "video/webm",
+        ".mov": "video/quicktime",
+        ".mkv": "video/x-matroska",
+    }.get(source.suffix.lower(), "application/octet-stream")
+
+
+def browser_media_error(source: Path, technical: dict[str, object]) -> str | None:
+    video = technical.get("video")
+    audio = technical.get("audio")
+    video_codec = video.get("codec") if isinstance(video, dict) else None
+    audio_codec = audio.get("codec") if isinstance(audio, dict) else None
+    container_names = {
+        name.strip()
+        for name in str(technical.get("container") or "").split(",")
+        if name.strip()
+    }
+    suffix = source.suffix.lower()
+    if suffix in {".mp4", ".m4v"}:
+        if container_names and not container_names & {"mov", "mp4", "m4a", "3gp", "3g2", "mj2"}:
+            return f"container {', '.join(sorted(container_names))}"
+        if video_codec not in {"h264", "av1"}:
+            return f"video codec {video_codec or 'unknown'}"
+        if audio_codec not in {None, "aac"}:
+            return f"audio codec {audio_codec}"
+        return None
+    if suffix == ".webm":
+        if container_names and "webm" not in container_names:
+            return f"container {', '.join(sorted(container_names))}"
+        if video_codec not in {"vp8", "vp9", "av1"}:
+            return f"video codec {video_codec or 'unknown'}"
+        if audio_codec not in {None, "opus", "vorbis"}:
+            return f"audio codec {audio_codec}"
+        return None
+    return f"container {suffix.lstrip('.') or 'unknown'}"
+
+
 app = FastAPI(title="Video Catalog")
 jobs: dict[str, dict[str, object]] = {}
 job_lock = threading.Lock()
+render_processes: dict[str, tuple[subprocess.Popen[str], Path, Path]] = {}
+render_process_lock = threading.Lock()
+montage_export_lock = threading.Lock()
+server_stopping = False
 capability_probe: dict[str, object] | None = None
 capability_probe_lock = threading.Lock()
 MONTAGE_PAGE_DURATION_SECONDS = 3
@@ -214,6 +262,26 @@ def update_job(job_id: str, **changes: object) -> dict[str, object] | None:
         return dict(job)
 
 
+def rendered_output_path(job: dict[str, object]) -> Path:
+    return Path(str(job.get("render_output", job["output"])))
+
+
+def remove_rendered_output(job: dict[str, object]) -> None:
+    rendered_output_path(job).unlink(missing_ok=True)
+
+
+def terminate_renderer(process: subprocess.Popen[str]) -> None:
+    poll = getattr(process, "poll", None)
+    if callable(poll) and poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
 @app.get("/api/videos")
 def videos(request: Request, q: str = "", language: str = "", orientation: str = "", speech: str = "", review: str = "", favorite: str = "", publishable: str = "", flag: str = "", sort: str = "newest", limit: int = 48, offset: int = 0):
     connection = db()
@@ -240,16 +308,21 @@ def batch_videos(payload: BatchPayload):
     items = []
     for video_id in payload.ids:
         item = record(video_id)
-        file_for(video_id)
+        source = file_for(video_id)
         duration = item.get("duration_seconds")
         if not isinstance(duration, (int, float)) or not math.isfinite(duration) or duration <= 0:
             raise HTTPException(422, f"Video duration is unavailable: {video_id}. Reanalyze the clip before creating a montage.")
         try:
-            codec = json.loads(str(item["raw_json"])).get("technical", {}).get("video", {}).get("codec")
+            technical = json.loads(str(item["raw_json"])).get("technical", {})
         except (KeyError, TypeError, json.JSONDecodeError):
-            codec = None
-        if codec not in {"h264", "vp8", "vp9", "av1"}:
-            raise HTTPException(422, f"Video {item['title'] or video_id} uses an unsupported browser codec. Reencode it to H.264 MP4 before creating a montage.")
+            technical = {}
+        browser_error = browser_media_error(source, technical)
+        if browser_error:
+            raise HTTPException(
+                422,
+                f"Video {item['title'] or video_id} uses an unsupported browser media format ({browser_error}). "
+                "Reencode it to H.264/AAC MP4 before creating a montage.",
+            )
         items.append({"id": item["id"], "title": item["title"], "duration_seconds": duration, "width": item.get("width"), "height": item.get("height"), "orientation": item.get("orientation") or "landscape", "media_url": f"/api/videos/{video_id}/media", "poster_url": f"/api/videos/{video_id}/poster"})
     return {"items": items}
 
@@ -299,7 +372,8 @@ def reimport():
 
 @app.get("/api/videos/{video_id}/media")
 def media(video_id: str):
-    return FileResponse(file_for(video_id), media_type="video/mp4")
+    source = file_for(video_id)
+    return FileResponse(source, media_type=media_type_for(source))
 
 
 @app.get("/api/videos/{video_id}/integrity")
@@ -354,6 +428,7 @@ def poster(video_id: str):
 
 def _render_job(job_id: str, request_path: Path) -> None:
     update_job(job_id, status="rendering")
+    process: subprocess.Popen[str] | None = None
     try:
         try:
             process = subprocess.Popen(
@@ -372,8 +447,14 @@ def _render_job(job_id: str, request_path: Path) -> None:
             )
             job = read_job(job_id)
             if job:
-                Path(str(job["output"])).unlink(missing_ok=True)
+                remove_rendered_output(job)
             return
+        job = read_job(job_id)
+        if not job:
+            terminate_renderer(process)
+            return
+        with render_process_lock:
+            render_processes[job_id] = (process, request_path, rendered_output_path(job))
         assert process.stdout is not None
         renderer_output: list[str] = []
         output_queue: Queue[str | None] = Queue()
@@ -383,19 +464,27 @@ def _render_job(job_id: str, request_path: Path) -> None:
                 output_queue.put(line)
             output_queue.put(None)
 
-        threading.Thread(target=drain_renderer_output, daemon=True).start()
+        try:
+            threading.Thread(target=drain_renderer_output, daemon=True).start()
+        except RuntimeError as error:
+            terminate_renderer(process)
+            update_job(
+                job_id,
+                status="failed",
+                error_code="render_failed",
+                error=f"Could not read Remotion renderer output: {error}",
+            )
+            job = read_job(job_id)
+            if job:
+                remove_rendered_output(job)
+            return
         deadline = time.monotonic() + RENDER_TIMEOUT_SECONDS
         timed_out = False
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 timed_out = True
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
+                terminate_renderer(process)
                 break
             try:
                 line = output_queue.get(timeout=min(1, remaining))
@@ -418,7 +507,7 @@ def _render_job(job_id: str, request_path: Path) -> None:
             )
             job = read_job(job_id)
             if job:
-                Path(str(job["output"])).unlink(missing_ok=True)
+                remove_rendered_output(job)
             return
         if process.wait() != 0:
             error = "\n".join(renderer_output)[-800:] or "Remotion renderer failed"
@@ -430,10 +519,10 @@ def _render_job(job_id: str, request_path: Path) -> None:
             )
             job = read_job(job_id)
             if job:
-                Path(str(job["output"])).unlink(missing_ok=True)
+                remove_rendered_output(job)
         else:
             job = read_job(job_id)
-            if not job:
+            if not job or job["status"] != "rendering":
                 return
             try:
                 persist_montage_export(job_id, job)
@@ -445,12 +534,77 @@ def _render_job(job_id: str, request_path: Path) -> None:
                     error=f"Rendered video could not be recorded: {error}",
                 )
                 try:
-                    Path(str(job["output"])).unlink(missing_ok=True)
+                    remove_rendered_output(job)
                 except OSError:
                     pass
             else:
-                update_job(job_id, status="completed", progress=1, stage="completed")
+                try:
+                    with render_process_lock:
+                        if server_stopping:
+                            raise OSError("Server is stopping")
+                        rendered_output_path(job).replace(Path(str(job["output"])))
+                except OSError as error:
+                    connection = None
+                    try:
+                        connection = db()
+                        delete_montage_export_by_job(connection, job_id)
+                    except sqlite3.Error:
+                        pass
+                    finally:
+                        if connection is not None:
+                            connection.close()
+                    update_job(
+                        job_id,
+                        status="failed",
+                        error_code="render_failed",
+                        error=f"Rendered video could not be published: {error}",
+                    )
+                    try:
+                        remove_rendered_output(job)
+                    except OSError:
+                        pass
+                else:
+                    update_job(job_id, status="completed", progress=1, stage="completed")
+    except Exception as error:
+        if process is not None:
+            terminate_renderer(process)
+        update_job(
+            job_id,
+            status="failed",
+            error_code="render_failed",
+            error=f"Montage renderer stopped unexpectedly: {error}",
+        )
+        job = read_job(job_id)
+        if job:
+            try:
+                remove_rendered_output(job)
+            except OSError:
+                pass
     finally:
+        with render_process_lock:
+            render_processes.pop(job_id, None)
+        request_path.unlink(missing_ok=True)
+
+
+@app.on_event("shutdown")
+def stop_renderers() -> None:
+    global server_stopping
+    with render_process_lock:
+        server_stopping = True
+        active_renderers = list(render_processes.items())
+        render_processes.clear()
+    for job_id, (process, request_path, rendered_output) in active_renderers:
+        terminate_renderer(process)
+        update_job(
+            job_id,
+            status="failed",
+            error_code="render_interrupted",
+            error="Montage rendering was interrupted while the server was stopping.",
+        )
+        try:
+            rendered_output.unlink(missing_ok=True)
+        except OSError:
+            pass
         request_path.unlink(missing_ok=True)
 
 
@@ -638,9 +792,10 @@ def create_montage(payload: MontageRequest, request: Request):
         montage_root.mkdir(parents=True, exist_ok=True)
         job_id = uuid.uuid4().hex
         output = montage_root / montage_filename(spec["title"], job_id)
+        render_output = montage_root / f".{job_id}.rendering.mp4"
         request_path = montage_root / f".{job_id}.json"
-        request_path.write_text(json.dumps({"spec": spec, "output": str(output), "software_fallback": payload.software_fallback}), encoding="utf-8")
-        jobs[job_id] = {"id": job_id, "title": spec["title"], "duration_seconds": montage_duration_seconds(spec), "status": "queued", "progress": 0, "stage": "queued", "output": str(output)}
+        request_path.write_text(json.dumps({"spec": spec, "output": str(render_output), "software_fallback": payload.software_fallback}), encoding="utf-8")
+        jobs[job_id] = {"id": job_id, "title": spec["title"], "duration_seconds": montage_duration_seconds(spec), "status": "queued", "progress": 0, "stage": "queued", "output": str(output), "render_output": str(render_output)}
         response = job_response(jobs[job_id])
         try:
             threading.Thread(target=_render_job, args=(job_id, request_path), daemon=True).start()
@@ -657,6 +812,17 @@ def montage_status(job_id: str):
     if not job:
         raise HTTPException(404, "Montage export not found")
     return job_response(job)
+
+
+@app.get("/api/montages/{job_id}/artifact")
+def montage_artifact_path(job_id: str):
+    job = read_job(job_id)
+    if not job or job["status"] != "completed":
+        raise HTTPException(404, "Montage export is not ready")
+    output = contained_montage_path(Path(str(job["output"])))
+    if not output.is_file():
+        raise HTTPException(404, "Montage file is unavailable")
+    return {"path": str(output)}
 
 
 @app.get("/api/montages/{job_id}/download")
@@ -726,6 +892,11 @@ def stream_montage_export(export_id: int):
 
 @app.delete("/api/montage-exports/{export_id}")
 def remove_montage_export(export_id: int):
+    with montage_export_lock:
+        return _remove_montage_export(export_id)
+
+
+def _remove_montage_export(export_id: int):
     entry = montage_export_entry(export_id)
     output = montage_export_file_path(entry)
     staged = output.with_name(f".{uuid.uuid4().hex}-{output.name}")

@@ -331,6 +331,14 @@ def download_montage(args: argparse.Namespace, job_id: str) -> Path:
     return output
 
 
+def artifact_path(args: argparse.Namespace, job_id: str) -> str:
+    payload = api_request(args.server, "GET", f"/api/montages/{job_id}/artifact")
+    path = payload.get("path")
+    if not isinstance(path, str) or not path:
+        raise ValueError(f"Catalog server did not return an artifact path for montage job {job_id}")
+    return path
+
+
 def job_result(args: argparse.Namespace) -> dict[str, Any]:
     job = (
         wait_for_job(args, args.job_id)
@@ -343,10 +351,12 @@ def job_result(args: argparse.Namespace) -> dict[str, Any]:
             f"{job.get('error', 'Unknown rendering error')}"
         )
     output = download_montage(args, args.job_id) if args.output else None
+    rendered_path = artifact_path(args, args.job_id) if job["status"] == "completed" else None
     return {
         "kind": "montage_job",
         "job": job,
         "download_url": api_url(args.server, f"/api/montages/{args.job_id}/download"),
+        **({"artifact_path": rendered_path} if rendered_path else {}),
         **({"output": str(output)} if output else {}),
     }
 
@@ -385,12 +395,14 @@ def generate_montage(args: argparse.Namespace) -> dict[str, Any]:
                 f"{job.get('error', 'Unknown rendering error')}"
             )
     output = download_montage(args, job["id"]) if args.output else None
+    rendered_path = artifact_path(args, job["id"]) if job["status"] == "completed" else None
     return {
         "kind": "montage_generation",
         "preset": {"id": preset["id"], "name": preset["name"]},
         "video_ids": args.video_ids,
         "job": job,
         "download_url": api_url(args.server, f"/api/montages/{job['id']}/download"),
+        **({"artifact_path": rendered_path} if rendered_path else {}),
         **({"preset_warning": preset_warning} if preset_warning else {}),
         **({"output": str(output)} if output else {}),
     }

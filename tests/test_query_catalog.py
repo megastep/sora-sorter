@@ -136,6 +136,8 @@ class MontageCliTests(unittest.TestCase):
                             "stage": "completed",
                         }
                     )
+                elif self.path == "/api/montages/job-1/artifact":
+                    self.reply({"path": "/tmp/rendered-montage.mp4"})
                 elif self.path == "/api/montages/job-1/download":
                     body = download["body"]
                     self.send_response(200)
@@ -216,6 +218,7 @@ class MontageCliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             payload = json.loads(result.stdout)
             self.assertEqual(payload["job"]["status"], "completed")
+            self.assertEqual(payload["artifact_path"], "/tmp/rendered-montage.mp4")
             self.assertEqual(output.read_bytes(), b"mp4-data")
             render_request = next(
                 body for method, path, body in self.requests if method == "POST" and path == "/api/montages"
@@ -237,6 +240,14 @@ class MontageCliTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("Download was incomplete", result.stderr)
             self.assertFalse(output.exists())
+
+    def test_returns_the_server_artifact_path_without_downloading(self) -> None:
+        result = self.run_cli("generate", "video-b", "video-a")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["artifact_path"], "/tmp/rendered-montage.mp4")
+        self.assertNotIn(("GET", "/api/montages/job-1/download", None), self.requests)
 
     def test_rejects_duplicate_video_ids_before_rendering(self) -> None:
         result = self.run_cli("generate", "same", "same", "--preset", "7")

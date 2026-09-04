@@ -1,5 +1,7 @@
 # Sora Sorter
 
+![Sora Sorter catalog gallery](docs/screenshot.jpg)
+
 Sora Sorter is a local, SQLite-backed catalog for a library of analyzed video
 clips. It turns one JSON analysis record per clip into a fast, editable gallery
 for finding clips, reviewing them, and preparing selections for later edits or
@@ -310,3 +312,11 @@ pnpm --dir frontend format
 Sora Sorter is a single-user, local workflow tool. It does not provide hosted
 storage, user authentication, or remote sharing. Its included analyzer is an
 optional local workflow; review its generated metadata before editorial use.
+
+## Author
+
+Created by [Stephane Peter](https://github.com/megastep).
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

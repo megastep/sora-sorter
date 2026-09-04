@@ -15,13 +15,15 @@ describe('filterKeywordSuggestions', () => {
       { keyword: 'Garden', count: 4 },
       { keyword: 'night garden', count: 2 },
       { keyword: 'Forest', count: 1 },
-      ...Array.from({ length: 10 }, (_, index) => ({ keyword: `garden ${index}`, count: 1 })),
+      { keyword: 'garden party', count: 8 },
+      ...Array.from({ length: 9 }, (_, index) => ({ keyword: `garden ${index}`, count: 1 })),
     ];
 
     expect(filterKeywordSuggestions(keywords, 'GARDEN')).toEqual([
+      { keyword: 'garden party', count: 8 },
       { keyword: 'Garden', count: 4 },
       { keyword: 'night garden', count: 2 },
-      ...Array.from({ length: 8 }, (_, index) => ({ keyword: `garden ${index}`, count: 1 })),
+      ...Array.from({ length: 7 }, (_, index) => ({ keyword: `garden ${index}`, count: 1 })),
     ]);
     expect(filterKeywordSuggestions(keywords, '')).toEqual([]);
   });

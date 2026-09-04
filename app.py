@@ -27,7 +27,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, FiniteFloat, model_validator
 
-from catalog_db import _effective, connect, delete_montage_export, delete_montage_preset, import_directory, initialize, list_content_flags, list_keywords, list_montage_exports, list_montage_presets, list_video_ids, list_videos, montage_export, record_montage_export, save_montage_preset, update, use_montage_preset
+from catalog_db import _effective, connect, delete_montage_export, delete_montage_preset, import_directory, initialize, list_content_flags, list_keywords, list_montage_exports, list_montage_presets, list_video_ids, list_videos, montage_export, record_montage_export, restore_montage_export, save_montage_preset, update, use_montage_preset
 
 
 @dataclass(frozen=True)
@@ -717,14 +717,34 @@ def stream_montage_export(export_id: int):
 def remove_montage_export(export_id: int):
     entry = montage_export_entry(export_id)
     output = montage_export_file_path(entry)
-    output.unlink(missing_ok=True)
+    staged = output.with_name(f".{uuid.uuid4().hex}-{output.name}")
+    if output.exists():
+        try:
+            output.replace(staged)
+        except OSError as error:
+            raise HTTPException(500, "Could not prepare montage file for deletion") from error
     connection = db()
     try:
         delete_montage_export(connection, export_id)
-    except KeyError:
-        raise HTTPException(404, "Montage export not found")
+    except (KeyError, sqlite3.Error) as error:
+        if staged.exists():
+            staged.replace(output)
+        if isinstance(error, KeyError):
+            raise HTTPException(404, "Montage export not found") from error
+        raise HTTPException(500, "Could not delete montage export") from error
     finally:
         connection.close()
+    if staged.exists():
+        try:
+            staged.unlink()
+        except OSError as error:
+            connection = db()
+            try:
+                restore_montage_export(connection, entry)
+                staged.replace(output)
+            finally:
+                connection.close()
+            raise HTTPException(500, "Could not remove montage file") from error
     return {"deleted": True}
 
 

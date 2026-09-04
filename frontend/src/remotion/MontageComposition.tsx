@@ -337,7 +337,7 @@ export function MontageComposition({ spec }: { spec: MontageSpec }) {
                     spec.fillMismatchedOrientation &&
                     (clip.width && clip.height
                       ? clip.width === clip.height || clip.height > clip.width !== outputPortrait
-                      : (clip.orientation === 'portrait') !== outputPortrait)
+                      : clip.orientation !== (outputPortrait ? 'portrait' : 'landscape'))
                   }
                 />
               </TransitionSeries.Sequence>

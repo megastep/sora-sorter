@@ -243,7 +243,7 @@ def list_montage_exports(db: sqlite3.Connection) -> list[dict[str, Any]]:
 
 def montage_export(db: sqlite3.Connection, export_id: int) -> dict[str, Any]:
     row = db.execute(
-        "SELECT id, title, filename, duration_seconds, generated_at FROM montage_exports WHERE id=?", (export_id,)
+        "SELECT id, job_id, title, filename, duration_seconds, generated_at FROM montage_exports WHERE id=?", (export_id,)
     ).fetchone()
     if not row:
         raise KeyError(export_id)
@@ -255,6 +255,24 @@ def delete_montage_export(db: sqlite3.Connection, export_id: int) -> None:
         cursor = db.execute("DELETE FROM montage_exports WHERE id=?", (export_id,))
         if not cursor.rowcount:
             raise KeyError(export_id)
+
+
+def restore_montage_export(db: sqlite3.Connection, entry: dict[str, Any]) -> None:
+    with db:
+        db.execute(
+            """
+            INSERT INTO montage_exports(id, job_id, title, filename, duration_seconds, generated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                entry["id"],
+                entry["job_id"],
+                entry["title"],
+                entry["filename"],
+                entry["duration_seconds"],
+                entry["generated_at"],
+            ),
+        )
 
 
 def _list(value: Any) -> list[Any]:

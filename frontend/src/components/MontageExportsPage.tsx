@@ -5,7 +5,7 @@ import {
   PlayArrowRounded,
 } from '@mui/icons-material';
 import { Box, Button, Paper, Stack, Typography } from '@mui/material';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { deleteMontageExport, fetchMontageExports, type MontageExport } from '../api';
 
 const formatDuration = (seconds: number | null) => {
@@ -23,47 +23,55 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
   const [deletingIds, setDeletingIds] = useState<Set<number>>(() => new Set());
   const refreshVersion = useRef(0);
   const deletingIdsRef = useRef(new Set<number>());
-  useEffect(() => {
-    let mounted = true;
-    const loadExports = () => {
-      const requestVersion = ++refreshVersion.current;
-      fetchMontageExports()
-        .then((items) => {
-          if (!mounted || requestVersion !== refreshVersion.current) return;
-          setExports(items);
-          setError(null);
-        })
-        .catch((reason: unknown) => {
-          if (!mounted || requestVersion !== refreshVersion.current) return;
-          setError(reason instanceof Error ? reason.message : 'Could not load generated montages.');
-        })
-        .finally(() => {
-          if (mounted && requestVersion === refreshVersion.current) setLoading(false);
-        });
-    };
-    void loadExports();
-    window.addEventListener('montage-export-completed', loadExports);
-    return () => {
-      mounted = false;
-      window.removeEventListener('montage-export-completed', loadExports);
-    };
+  const deletedIdsRef = useRef(new Set<number>());
+  const mountedRef = useRef(true);
+  const loadExports = useCallback(() => {
+    const requestVersion = ++refreshVersion.current;
+    return fetchMontageExports()
+      .then((items) => {
+        if (!mountedRef.current || requestVersion !== refreshVersion.current) return;
+        setExports(items.filter((item) => !deletedIdsRef.current.has(item.id)));
+        setError(null);
+      })
+      .catch((reason: unknown) => {
+        if (!mountedRef.current || requestVersion !== refreshVersion.current) return;
+        setError(reason instanceof Error ? reason.message : 'Could not load generated montages.');
+      })
+      .finally(() => {
+        if (mountedRef.current && requestVersion === refreshVersion.current) setLoading(false);
+      });
   }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    const refresh = () => {
+      void loadExports();
+    };
+    refresh();
+    window.addEventListener('montage-export-completed', refresh);
+    return () => {
+      mountedRef.current = false;
+      window.removeEventListener('montage-export-completed', refresh);
+    };
+  }, [loadExports]);
   const deleteExport = (exportId: number) => {
     if (deletingIdsRef.current.has(exportId)) return;
     refreshVersion.current += 1;
     deletingIdsRef.current.add(exportId);
+    deletedIdsRef.current.add(exportId);
     setDeletingIds(new Set(deletingIdsRef.current));
     void deleteMontageExport(exportId)
       .then(() => {
         setExports((items) => items.filter((item) => item.id !== exportId));
         setPlayingId((current) => (current === exportId ? null : current));
       })
-      .catch((reason: unknown) =>
-        setError(reason instanceof Error ? reason.message : 'Could not delete montage.'),
-      )
+      .catch((reason: unknown) => {
+        deletedIdsRef.current.delete(exportId);
+        setError(reason instanceof Error ? reason.message : 'Could not delete montage.');
+      })
       .finally(() => {
         deletingIdsRef.current.delete(exportId);
         setDeletingIds(new Set(deletingIdsRef.current));
+        void loadExports();
       });
   };
   return (

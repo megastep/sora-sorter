@@ -270,10 +270,12 @@ class MontageApiTests(unittest.TestCase):
         export_id = database.execute("SELECT id FROM montage_exports WHERE job_id='job-1'").fetchone()[0]
 
         with patch("pathlib.Path.unlink", side_effect=OSError("read-only directory")):
-            with self.assertRaises(OSError):
+            with self.assertRaises(HTTPException) as raised:
                 catalog_app.remove_montage_export(export_id)
 
+        self.assertEqual(raised.exception.status_code, 500)
         self.assertEqual(montage_export(database, export_id)["filename"], output.name)
+        self.assertTrue(output.is_file())
 
     def test_rejects_montage_symlinks_that_escape_the_export_directory(self) -> None:
         output_directory = self.root / ".catalog_montages"

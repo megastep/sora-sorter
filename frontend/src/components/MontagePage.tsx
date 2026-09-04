@@ -60,7 +60,7 @@ const activeRenderJobStorageKey = 'video-catalog-active-montage-job';
 const previewableSpec = (spec: MontageSpec): MontageSpec => {
   const shortestClip = Math.min(...spec.clips.map((clip) => clip.duration_seconds));
   if (
-    spec.transition !== 'cut' &&
+    !['cut', 'film-cut'].includes(spec.transition) &&
     Math.max(1, Math.round(shortestClip * montageFps)) <=
       Math.max(1, Math.round(spec.transitionDuration * montageFps))
   ) {
@@ -576,7 +576,8 @@ export function MontagePage({
           }}
           onSavePreset={(presetId) => void savePreset(presetId)}
           onDeletePreset={() => {
-            if (!presetDeleting)
+            if (!presetDeleting) {
+              presetSelectionVersion.current += 1;
               void deletePreset(activePresetId!, {
                 setPresets,
                 setActivePresetId,
@@ -584,6 +585,7 @@ export function MontagePage({
                 setPresetError,
                 setPresetDeleting,
               });
+            }
           }}
           onSoftwareFallback={() => void startExport(true)}
         />

@@ -27,12 +27,14 @@ import { catalogDesign } from '../theme';
 import { PillInput } from './PillInput';
 import { ReferenceEditor } from './ReferenceEditor';
 
+const emptyKeywordSuggestions: KeywordSummary[] = [];
+
 export function Inspector({
   item,
   onSaved,
   onClose,
   drawer = false,
-  keywordSuggestions = [],
+  keywordSuggestions = emptyKeywordSuggestions,
 }: {
   item: Video;
   onSaved: (value: Video) => void;

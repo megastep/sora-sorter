@@ -302,6 +302,12 @@ export function MontagePage({
       setExportStarting(false);
     }
   };
+  if (!clipsReady)
+    return (
+      <Box sx={{ p: 4 }}>
+        <Typography>Loading selected clips…</Typography>
+      </Box>
+    );
   if (clips.length < 2)
     return (
       <Box sx={{ p: 4 }}>

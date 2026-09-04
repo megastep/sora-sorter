@@ -11,6 +11,7 @@ import json
 import math
 import os
 import re
+import sqlite3
 import subprocess
 import threading
 import time
@@ -381,16 +382,8 @@ def _render_job(job_id: str, request_path: Path) -> None:
             job = read_job(job_id)
             if not job:
                 return
-            connection = None
             try:
-                connection = db()
-                record_montage_export(
-                    connection,
-                    job_id,
-                    str(job["title"]),
-                    Path(str(job["output"])).name,
-                    float(job["duration_seconds"]),
-                )
+                persist_montage_export(job_id, job)
             except Exception as error:
                 Path(str(job["output"])).unlink(missing_ok=True)
                 update_job(
@@ -401,11 +394,30 @@ def _render_job(job_id: str, request_path: Path) -> None:
                 )
             else:
                 update_job(job_id, status="completed", progress=1, stage="completed")
-            finally:
-                if connection is not None:
-                    connection.close()
     finally:
         request_path.unlink(missing_ok=True)
+
+
+def persist_montage_export(job_id: str, job: dict[str, object]) -> None:
+    for attempt in range(3):
+        connection = None
+        try:
+            connection = db()
+            record_montage_export(
+                connection,
+                job_id,
+                str(job["title"]),
+                Path(str(job["output"])).name,
+                float(job["duration_seconds"]),
+            )
+            return
+        except sqlite3.OperationalError:
+            if attempt == 2:
+                raise
+            time.sleep(attempt + 1)
+        finally:
+            if connection is not None:
+                connection.close()
 
 
 def montage_filename(title: str, job_id: str) -> str:

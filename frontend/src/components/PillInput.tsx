@@ -2,6 +2,8 @@ import { Autocomplete, TextField } from '@mui/material';
 import { useState } from 'react';
 import type { KeywordSummary } from '../api';
 
+const emptySuggestions: KeywordSummary[] = [];
+
 export const normalizePills = (values: readonly string[]) => {
   const seen = new Set<string>();
   const pills: string[] = [];
@@ -24,7 +26,7 @@ export function PillInput({
   placeholder,
   value,
   onChange,
-  suggestions = [],
+  suggestions = emptySuggestions,
 }: {
   label: string;
   placeholder: string;

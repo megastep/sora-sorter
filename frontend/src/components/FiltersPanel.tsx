@@ -83,6 +83,7 @@ export function FiltersPanel({
           fullWidth
           openOnFocus={false}
           options={filterKeywordSuggestions(keywords, filters.q ?? '')}
+          inputValue={filters.q ?? ''}
           getOptionLabel={(option) => (typeof option === 'string' ? option : option.keyword)}
           isOptionEqualToValue={(option, value) =>
             typeof value !== 'string' && option.keyword === value.keyword

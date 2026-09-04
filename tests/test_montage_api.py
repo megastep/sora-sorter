@@ -1,4 +1,5 @@
 import json
+import sqlite3
 import subprocess
 import tempfile
 import unittest
@@ -140,6 +141,22 @@ class MontageApiTests(unittest.TestCase):
 
         self.assertFalse(capability["accelerated"])
         self.assertIsNone(catalog_app.capability_probe)
+
+    def test_retries_export_persistence_after_a_transient_database_lock(self) -> None:
+        job = {
+            "title": "Export",
+            "output": str(self.root / "result.mp4"),
+            "duration_seconds": 12,
+        }
+
+        with patch(
+            "app.record_montage_export",
+            side_effect=[sqlite3.OperationalError("database is locked"), None],
+        ) as record_export, patch("app.time.sleep") as sleep:
+            catalog_app.persist_montage_export("job", job)
+
+        self.assertEqual(record_export.call_count, 2)
+        sleep.assert_called_once_with(1)
 
     def test_job_response_uses_a_fixed_public_field_set(self) -> None:
         response = catalog_app.job_response(

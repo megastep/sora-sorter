@@ -17,6 +17,7 @@ import tempfile
 import threading
 import time
 import uuid
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from queue import Empty, Queue
@@ -220,7 +221,13 @@ def browser_media_error(source: Path, technical: dict[str, object]) -> str | Non
     return f"container {suffix.lstrip('.') or 'unknown'}"
 
 
-app = FastAPI(title="Video Catalog")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    yield
+    stop_renderers()
+
+
+app = FastAPI(title="Video Catalog", lifespan=lifespan)
 jobs: dict[str, dict[str, object]] = {}
 job_lock = threading.Lock()
 render_processes: dict[str, tuple[subprocess.Popen[str], Path, Path]] = {}
@@ -600,7 +607,6 @@ def _render_job(job_id: str, request_path: Path) -> None:
         request_path.unlink(missing_ok=True)
 
 
-@app.on_event("shutdown")
 def stop_renderers() -> None:
     global server_stopping
     with render_process_lock:

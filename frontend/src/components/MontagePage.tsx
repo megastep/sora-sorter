@@ -482,6 +482,7 @@ export function MontagePage({
               fps={montageFps}
               acknowledgeRemotionLicense
               initiallyMuted={false}
+              autoPlay={false}
               controls
               style={{ width: '100%', aspectRatio: `${dimensions.width}/${dimensions.height}` }}
             />

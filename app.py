@@ -24,7 +24,7 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, FiniteFloat, model_validator
 
 from catalog_db import _effective, connect, delete_montage_export, delete_montage_preset, import_directory, initialize, list_keywords, list_montage_exports, list_montage_presets, list_video_ids, list_videos, montage_export, record_montage_export, save_montage_preset, update, use_montage_preset
 
@@ -134,8 +134,8 @@ class MontageEndPage(BaseModel):
     enabled: bool
     title: str = Field(max_length=200)
     subtitle: str = Field(max_length=200)
-    fontSize: float = Field(ge=32, le=180)
-    subtitleFontSize: float = Field(ge=16, le=120)
+    fontSize: FiniteFloat = Field(ge=32, le=180)
+    subtitleFontSize: FiniteFloat = Field(ge=16, le=120)
 
 
 class MontageSettingsPayload(BaseModel):
@@ -143,10 +143,10 @@ class MontageSettingsPayload(BaseModel):
     fillMismatchedOrientation: bool
     title: str = Field(max_length=200)
     titleSubtitle: str = Field(max_length=200)
-    titleFontSize: float = Field(ge=32, le=180)
-    titleSubtitleFontSize: float = Field(ge=16, le=120)
+    titleFontSize: FiniteFloat = Field(ge=32, le=180)
+    titleSubtitleFontSize: FiniteFloat = Field(ge=16, le=120)
     transition: Literal["cut", "crossfade", "slide", "wipe"]
-    transitionDuration: float = Field(ge=0, le=2)
+    transitionDuration: FiniteFloat = Field(ge=0, le=2)
     cutColor: str = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
     endPage: MontageEndPage
 

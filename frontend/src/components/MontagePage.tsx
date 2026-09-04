@@ -63,16 +63,23 @@ const previewableSpec = (spec: MontageSpec): MontageSpec => {
   return spec;
 };
 
-const hasValidPreviewTiming = (spec: MontageSpec, previewFrames: number) =>
-  Number.isFinite(spec.transitionDuration) &&
-  spec.clips.every((clip) => Number.isFinite(clip.duration_seconds) && clip.duration_seconds > 0) &&
-  Number.isFinite(previewFrames) &&
-  previewFrames > 0;
+// fallow-ignore-next-line complexity -- each guard identifies a distinct invalid timing source.
+const previewTimingError = (spec: MontageSpec, previewFrames: number) => {
+  if (!Number.isFinite(spec.transitionDuration)) return 'The transition duration is not a number.';
+  const invalidClip = spec.clips.find(
+    (clip) => !Number.isFinite(clip.duration_seconds) || clip.duration_seconds <= 0,
+  );
+  if (invalidClip)
+    return `The duration for “${invalidClip.title || invalidClip.id}” is unavailable.`;
+  if (!Number.isFinite(previewFrames) || previewFrames <= 0)
+    return 'The montage timing could not be calculated.';
+  return null;
+};
 
 const previewState = (spec: MontageSpec) => {
   const previewSpec = previewableSpec(spec);
   const previewFrames = montageDurationInFrames(previewSpec);
-  return { previewSpec, previewFrames, hasValidTiming: hasValidPreviewTiming(spec, previewFrames) };
+  return { previewSpec, previewFrames, timingError: previewTimingError(spec, previewFrames) };
 };
 
 type PresetDeletionHandlers = {
@@ -423,7 +430,7 @@ export function MontagePage({
   };
   const dimensions = dimensionsFor(settings.format);
   const totalFrames = montageDurationInFrames(spec);
-  const { previewSpec, previewFrames, hasValidTiming } = useMemo(() => previewState(spec), [spec]);
+  const { previewSpec, previewFrames, timingError } = useMemo(() => previewState(spec), [spec]);
   // fallow-ignore-next-line complexity -- capability handling and render errors must share the same user-visible export state.
   const startExport = async (softwareFallback = false) => {
     setExportStarting(true);
@@ -456,11 +463,11 @@ export function MontagePage({
         onExports={onExports}
       />
     );
-  if (!hasValidTiming)
+  if (timingError)
     return (
       <MontageSelectionState
         loading={false}
-        error="A selected clip or transition duration is invalid. Reanalyze the clip or adjust the transition."
+        error={timingError}
         onBack={onBack}
         onExports={onExports}
       />

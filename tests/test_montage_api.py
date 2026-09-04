@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 import app as catalog_app
 from catalog_db import connect, import_directory, initialize, montage_export, record_montage_export
@@ -79,6 +80,29 @@ class MontageApiTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 422)
         self.assertIn("duration is unavailable", raised.exception.detail)
+
+    def test_rejects_non_finite_montage_timing(self) -> None:
+        with self.assertRaises(ValidationError):
+            catalog_app.MontageSettingsPayload.model_validate(
+                {
+                    "format": "landscape",
+                    "fillMismatchedOrientation": True,
+                    "title": "Title",
+                    "titleSubtitle": "",
+                    "titleFontSize": 88,
+                    "titleSubtitleFontSize": 28,
+                    "transition": "crossfade",
+                    "transitionDuration": math.nan,
+                    "cutColor": "#000000",
+                    "endPage": {
+                        "enabled": False,
+                        "title": "Thanks for watching",
+                        "subtitle": "",
+                        "fontSize": 88,
+                        "subtitleFontSize": 28,
+                    },
+                }
+            )
 
     def test_rejects_non_cut_transitions_that_exceed_clip_duration(self) -> None:
         with self.assertRaises(HTTPException) as raised:

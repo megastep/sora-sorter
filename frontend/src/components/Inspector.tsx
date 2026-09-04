@@ -21,26 +21,33 @@ import {
 } from '@mui/material';
 import { CloseRounded, ExpandMoreRounded, SaveRounded } from '@mui/icons-material';
 import { useState } from 'react';
+import { checkVideoIntegrity, type KeywordSummary, type VideoIntegrity } from '../api';
 import { API, toDraft, type Draft, type ReviewStatus, type Video } from '../catalog';
 import { catalogDesign } from '../theme';
 import { PillInput } from './PillInput';
 import { ReferenceEditor } from './ReferenceEditor';
+
+const emptyKeywordSuggestions: KeywordSummary[] = [];
 
 export function Inspector({
   item,
   onSaved,
   onClose,
   drawer = false,
+  keywordSuggestions = emptyKeywordSuggestions,
 }: {
   item: Video;
   onSaved: (value: Video) => void;
   onClose: () => void;
   drawer?: boolean;
+  keywordSuggestions?: KeywordSummary[];
 }) {
   const [draft, setDraft] = useState<Draft>(() => toDraft(item));
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [checkingIntegrity, setCheckingIntegrity] = useState(false);
+  const [integrity, setIntegrity] = useState<VideoIntegrity | null>(null);
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     setSaved(false);
@@ -90,6 +97,26 @@ export function Inspector({
       setSaving(false);
     }
   };
+  const checkIntegrity = async () => {
+    if (checkingIntegrity) return;
+    setCheckingIntegrity(true);
+    try {
+      setIntegrity(await checkVideoIntegrity(draft.id));
+    } catch (checkError) {
+      const filename = draft.original_filename || 'this video';
+      setIntegrity({
+        valid: false,
+        reason:
+          checkError instanceof Error && checkError.message.includes('Media file is unavailable')
+            ? `“${filename}” is unavailable from the media library.`
+            : checkError instanceof Error
+              ? checkError.message
+              : 'Could not inspect video file.',
+      });
+    } finally {
+      setCheckingIntegrity(false);
+    }
+  };
 
   return (
     <Paper
@@ -130,6 +157,10 @@ export function Inspector({
           controls
           src={`${API}/videos/${draft.id}/media`}
           poster={`${API}/videos/${draft.id}/poster`}
+          onError={() => {
+            const filename = draft.original_filename || 'this video';
+            setIntegrity({ valid: false, reason: `The browser could not play “${filename}”.` });
+          }}
           sx={{
             width: '100%',
             maxHeight: 300,
@@ -148,6 +179,7 @@ export function Inspector({
           placeholder="Add a keyword, then press Enter or comma"
           value={draft.keywords}
           onChange={(value) => set('keywords', value)}
+          suggestions={keywordSuggestions}
         />
         <TextField
           label="Language"
@@ -217,43 +249,49 @@ export function Inspector({
             ))}
           </Select>
         </FormControl>
-        <Stack spacing={0.5}>
-          <Typography id="rating-label" variant="body2" color="text.secondary">
-            Rating
-          </Typography>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <Rating
-              name="rating"
-              aria-labelledby="rating-label"
-              value={draft.rating}
-              onChange={(_, value) => set('rating', value)}
-            />
-            {draft.rating !== null && (
-              <Button size="small" onClick={() => set('rating', null)}>
-                Clear
-              </Button>
-            )}
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={1}
+          sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}
+        >
+          <Stack spacing={0.5}>
+            <Typography id="rating-label" variant="body2" color="text.secondary">
+              Rating
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+              <Rating
+                name="rating"
+                aria-labelledby="rating-label"
+                value={draft.rating}
+                onChange={(_, value) => set('rating', value)}
+              />
+              {draft.rating !== null && (
+                <Button size="small" onClick={() => set('rating', null)}>
+                  Clear
+                </Button>
+              )}
+            </Stack>
           </Stack>
-        </Stack>
-        <Stack direction="row" spacing={1}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={draft.favorite}
-                onChange={(event) => set('favorite', event.target.checked)}
-              />
-            }
-            label="Favorite"
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={draft.publishable}
-                onChange={(event) => set('publishable', event.target.checked)}
-              />
-            }
-            label="Publishable"
-          />
+          <Stack direction="row" spacing={1}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={draft.favorite}
+                  onChange={(event) => set('favorite', event.target.checked)}
+                />
+              }
+              label="Favorite"
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={draft.publishable}
+                  onChange={(event) => set('publishable', event.target.checked)}
+                />
+              }
+              label="Publishable"
+            />
+          </Stack>
         </Stack>
         <TextField
           label="Notes"
@@ -268,6 +306,20 @@ export function Inspector({
         <Button variant="contained" startIcon={<SaveRounded />} onClick={save} disabled={saving}>
           {saving ? 'Saving…' : saved ? 'Saved' : 'Save changes'}
         </Button>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          <Button
+            variant="outlined"
+            onClick={() => void checkIntegrity()}
+            disabled={checkingIntegrity}
+          >
+            {checkingIntegrity ? 'Checking…' : 'Check video file'}
+          </Button>
+          {integrity && (
+            <Alert severity={integrity.valid ? 'success' : 'error'} sx={{ py: 0 }}>
+              {integrity.reason}
+            </Alert>
+          )}
+        </Stack>
       </Stack>
     </Paper>
   );

@@ -1,4 +1,4 @@
 interface:
-  display_name: "Catalog Db Query"
-  short_description: "Read local catalog data safely"
-  default_prompt: "Use $catalog-db-query to inspect the local Sora Sorter catalog without changing it."
+  display_name: "Catalog and Montage CLI"
+  short_description: "Query clips and generate montage videos"
+  default_prompt: "Use $catalog-db-query to inspect the local Sora Sorter catalog or generate a montage from ordered catalog video IDs and a saved preset."

@@ -26,7 +26,9 @@ Use 8px radii for chips, 10px for controls and nested surfaces, and 14px for car
 
 Use MUI controls and semantic tokens before local styling. Buttons have a 36px minimum height; contained buttons are reserved for import and save actions. Inputs, selects, menus, alerts, and accordions inherit shared theme rules. Labels sit above inputs, and visible helper or error text stays below them. Keywords and content flags use comma-separated entry and render as removable pills.
 
-Cards are poster-first. Clicking a poster selects it for editing; the play overlay opens playback. The selected state uses the primary outline and tint, not a new color. Media itself may use black as a neutral viewing surface.
+Cards are poster-first. Clicking a poster selects it for editing; the play overlay opens playback. The selected state uses the primary outline and tint, not a new color. Media itself may use black as a neutral viewing surface. Card status is visual: show read-only gold stars when a rating exists and a Signal Blue bookmark when favorited; reserve the status-row height when neither applies so the grid remains aligned.
+
+Montage selection is independent of inspector selection. Each card has a top-left checkbox; selected cards show their one-based montage order in Signal Blue. The Montage page uses the same shell, a black preview stage, a horizontally scrollable ordered timeline, and a narrow settings rail. Keep keyboard move controls alongside drag reordering.
 
 The filter rail keeps search and discovery together: a compact Keywords button directly below Search opens an outlined popover of clickable keyword pills, ordered alphabetically. Popular keywords use a restrained larger type scale; selecting a pill fills Search and closes the popover.
 

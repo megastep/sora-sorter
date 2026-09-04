@@ -11,3 +11,4 @@ frontend/dist/
 *.sqlite-shm
 *.sqlite-wal
 .catalog_posters/
+.catalog_montages/

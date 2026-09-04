@@ -1,0 +1,309 @@
+import { DownloadRounded, ExpandMoreRounded } from '@mui/icons-material';
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Box,
+  Button,
+  FormControl,
+  InputLabel,
+  LinearProgress,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  Switch,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+} from '@mui/material';
+import { type MontagePreset, type RenderJob } from '../api';
+import { type MontageSettings, type OutputFormat, type TransitionType } from '../montage';
+
+type Props = {
+  settings: MontageSettings;
+  presets: MontagePreset[];
+  activePresetId: number | null;
+  presetName: string;
+  job: RenderJob | null;
+  exportStarting: boolean;
+  exportError: string | null;
+  presetError: string | null;
+  presetSaving: boolean;
+  onChange: (patch: Partial<MontageSettings>) => void;
+  onPresetNameChange: (name: string) => void;
+  onSelectPreset: (preset: MontagePreset) => void;
+  onClearPreset: () => void;
+  onSavePreset: (presetId?: number) => void;
+  onDeletePreset: () => void;
+  onSoftwareFallback: () => void;
+};
+
+const clampNumber = (value: string, minimum: number, maximum: number) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, number)) : minimum;
+};
+
+// fallow-ignore-next-line complexity -- settings controls share one preview-backed editor state and validation surface.
+export function MontageSettingsPanel(props: Props) {
+  const {
+    settings,
+    presets,
+    activePresetId,
+    presetName,
+    job,
+    exportStarting,
+    exportError,
+    presetError,
+    presetSaving,
+  } = props;
+  const minimumTransitionDuration = ['cut', 'film-cut'].includes(settings.transition) ? 0 : 0.1;
+  const changeEndPage = (patch: Partial<MontageSettings['endPage']>) =>
+    props.onChange({ endPage: { ...settings.endPage, ...patch } });
+
+  return (
+    <Paper sx={{ p: 2.5 }}>
+      <Stack spacing={2}>
+        <Typography variant="subtitle1">Montage settings</Typography>
+        <Accordion disableGutters elevation={0} sx={{ border: 1, borderColor: 'divider' }}>
+          <AccordionSummary expandIcon={<ExpandMoreRounded />}>
+            <Typography>Presets{activePresetId ? ` · ${presetName}` : ''}</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Stack spacing={1.5}>
+              <FormControl fullWidth>
+                <InputLabel id="montage-preset">Preset</InputLabel>
+                <Select
+                  labelId="montage-preset"
+                  label="Preset"
+                  value={activePresetId ?? ''}
+                  disabled={presetSaving}
+                  onChange={(event) => {
+                    if (!event.target.value) {
+                      props.onClearPreset();
+                      return;
+                    }
+                    const preset = presets.find((item) => item.id === Number(event.target.value));
+                    if (preset) props.onSelectPreset(preset);
+                  }}
+                >
+                  <MenuItem value="">Custom settings</MenuItem>
+                  {presets.map((preset) => (
+                    <MenuItem key={preset.id} value={preset.id}>
+                      {preset.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <TextField
+                label="Preset name"
+                value={presetName}
+                disabled={presetSaving}
+                onChange={(event) => props.onPresetNameChange(event.target.value)}
+                error={Boolean(presetError)}
+                helperText={presetError}
+              />
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  onClick={() => props.onSavePreset()}
+                  disabled={!presetName.trim() || presetSaving}
+                >
+                  Save new
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => activePresetId && props.onSavePreset(activePresetId)}
+                  disabled={!activePresetId || !presetName.trim() || presetSaving}
+                >
+                  Update
+                </Button>
+              </Box>
+              {activePresetId && (
+                <Button color="error" disabled={presetSaving} onClick={props.onDeletePreset}>
+                  Delete
+                </Button>
+              )}
+            </Stack>
+          </AccordionDetails>
+        </Accordion>
+        <ToggleButtonGroup
+          exclusive
+          value={settings.format}
+          onChange={(_, value: OutputFormat | null) => value && props.onChange({ format: value })}
+          fullWidth
+        >
+          <ToggleButton value="landscape">Landscape 16:9</ToggleButton>
+          <ToggleButton value="portrait">Portrait 9:16</ToggleButton>
+        </ToggleButtonGroup>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Typography sx={{ mr: 'auto' }}>Blur-fill mixed orientations</Typography>
+          <Switch
+            checked={settings.fillMismatchedOrientation}
+            onChange={(event) =>
+              props.onChange({ fillMismatchedOrientation: event.target.checked })
+            }
+          />
+        </Box>
+        <TextField
+          label="Title"
+          value={settings.title}
+          slotProps={{ htmlInput: { maxLength: 200 } }}
+          onChange={(event) => props.onChange({ title: event.target.value })}
+        />
+        <TextField
+          label="Title subtext (optional)"
+          value={settings.titleSubtitle}
+          slotProps={{ htmlInput: { maxLength: 200 } }}
+          onChange={(event) => props.onChange({ titleSubtitle: event.target.value })}
+        />
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+          <TextField
+            label="Title font size"
+            type="number"
+            value={settings.titleFontSize}
+            slotProps={{ htmlInput: { min: 32, max: 180 } }}
+            onChange={(event) =>
+              props.onChange({ titleFontSize: clampNumber(event.target.value, 32, 180) })
+            }
+          />
+          <TextField
+            label="Subtext font size"
+            type="number"
+            value={settings.titleSubtitleFontSize}
+            slotProps={{ htmlInput: { min: 16, max: 120 } }}
+            onChange={(event) =>
+              props.onChange({ titleSubtitleFontSize: clampNumber(event.target.value, 16, 120) })
+            }
+          />
+        </Box>
+        <FormControl fullWidth>
+          <InputLabel id="transition">Transition</InputLabel>
+          <Select
+            labelId="transition"
+            label="Transition"
+            value={settings.transition}
+            onChange={(event) => {
+              const transition = event.target.value as TransitionType;
+              props.onChange({
+                transition,
+                ...(!['cut', 'film-cut'].includes(transition) && settings.transitionDuration < 0.1
+                  ? { transitionDuration: 0.1 }
+                  : {}),
+              });
+            }}
+          >
+            <MenuItem value="cut">Cut</MenuItem>
+            <MenuItem value="film-cut">Film Cut</MenuItem>
+            <MenuItem value="crossfade">Crossfade</MenuItem>
+            <MenuItem value="slide">Slide</MenuItem>
+            <MenuItem value="wipe">Wipe</MenuItem>
+          </Select>
+        </FormControl>
+        <TextField
+          label={`${['cut', 'film-cut'].includes(settings.transition) ? 'Cut' : 'Transition'} duration (seconds)`}
+          type="number"
+          value={settings.transitionDuration}
+          slotProps={{ htmlInput: { min: minimumTransitionDuration, max: 2, step: 0.1 } }}
+          onChange={(event) => {
+            const duration = Number(event.target.value);
+            props.onChange({
+              transitionDuration: Number.isFinite(duration)
+                ? Math.min(2, Math.max(minimumTransitionDuration, duration))
+                : minimumTransitionDuration,
+            });
+          }}
+        />
+        {['cut', 'film-cut'].includes(settings.transition) && (
+          <TextField
+            label="Cut frame color"
+            type="color"
+            value={settings.cutColor}
+            onChange={(event) => props.onChange({ cutColor: event.target.value })}
+          />
+        )}
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Typography sx={{ mr: 'auto' }}>Include end page</Typography>
+          <Switch
+            checked={settings.endPage.enabled}
+            onChange={(event) => changeEndPage({ enabled: event.target.checked })}
+          />
+        </Box>
+        {settings.endPage.enabled && (
+          <>
+            <TextField
+              label="End page text"
+              value={settings.endPage.title}
+              slotProps={{ htmlInput: { maxLength: 200 } }}
+              onChange={(event) => changeEndPage({ title: event.target.value })}
+            />
+            <TextField
+              label="End page subtext (optional)"
+              value={settings.endPage.subtitle}
+              slotProps={{ htmlInput: { maxLength: 200 } }}
+              onChange={(event) => changeEndPage({ subtitle: event.target.value })}
+            />
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+              <TextField
+                label="Title font size"
+                type="number"
+                value={settings.endPage.fontSize}
+                slotProps={{ htmlInput: { min: 32, max: 180 } }}
+                onChange={(event) =>
+                  changeEndPage({ fontSize: clampNumber(event.target.value, 32, 180) })
+                }
+              />
+              <TextField
+                label="Subtext font size"
+                type="number"
+                value={settings.endPage.subtitleFontSize}
+                slotProps={{ htmlInput: { min: 16, max: 120 } }}
+                onChange={(event) =>
+                  changeEndPage({ subtitleFontSize: clampNumber(event.target.value, 16, 120) })
+                }
+              />
+            </Box>
+          </>
+        )}
+        {exportError && <Typography color="error.main">{exportError}</Typography>}
+        {job && (
+          <Box role="status">
+            {job.status === 'completed' ? (
+              <Button
+                variant="contained"
+                fullWidth
+                component="a"
+                href={`/api/montages/${job.id}/download`}
+                startIcon={<DownloadRounded />}
+              >
+                Download exported MP4
+              </Button>
+            ) : job.status === 'failed' ? (
+              <Stack spacing={1}>
+                <Typography color="error.main">{job.error ?? 'Export failed'}</Typography>
+                {job.error_code === 'hardware_acceleration_unavailable' && (
+                  <Button
+                    variant="outlined"
+                    disabled={exportStarting}
+                    onClick={props.onSoftwareFallback}
+                  >
+                    Export with software fallback
+                  </Button>
+                )}
+              </Stack>
+            ) : (
+              <Stack spacing={0.75}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography color="text.secondary">{job.stage}</Typography>
+                  <Typography color="text.secondary">{Math.round(job.progress * 100)}%</Typography>
+                </Box>
+                <LinearProgress variant="determinate" value={Math.round(job.progress * 100)} />
+              </Stack>
+            )}
+          </Box>
+        )}
+      </Stack>
+    </Paper>
+  );
+}

@@ -21,6 +21,8 @@ has no accounts, and keeps its source code separate from the video files.
   poster frames with FFmpeg.
 - Lets you edit descriptions, transcripts, keywords, flags, likeness/reference
   evidence, review state, rating, favorites, publishability, and notes.
+- Lets you select clips in order and assemble a 1080p landscape or portrait
+  montage with Remotion previews, transitions, titles, and optional end pages.
 - Preserves editorial edits as SQLite overrides when you re-import the original
   analysis JSON.
 
@@ -64,7 +66,8 @@ data. Test both a fresh database and a catalog created by the prior version.
 
 - Python 3.11 or newer
 - [uv](https://docs.astral.sh/uv/), for the local Python environment
-- Node.js and [pnpm](https://pnpm.io/), for the React frontend
+- Node.js 22.12 or newer and [pnpm](https://pnpm.io/), for the React frontend and
+  Remotion montage renderer
 - [FFmpeg](https://ffmpeg.org/), to generate poster frames the first time each
   clip is displayed and to prepare audio and representative frames for analysis
 - Optional for analysis: Apple Silicon with
@@ -166,6 +169,7 @@ starts; variables explicitly supplied by your shell take precedence.
 | `VIDEO_CATALOG_DATABASE_PATH`    | `<library-root>/catalog.sqlite`     | SQLite catalog and editorial overrides.       |
 | `VIDEO_CATALOG_JSON_DIRECTORY`   | `<library-root>/video_catalog_json` | Analysis JSON to import.                      |
 | `VIDEO_CATALOG_POSTER_DIRECTORY` | `<library-root>/.catalog_posters`   | Lazily generated JPEG poster cache.           |
+| `VIDEO_CATALOG_MONTAGE_DIRECTORY` | `<library-root>/.catalog_montages` | Completed local Remotion MP4 exports.  |
 | `VIDEO_CATALOG_PORT`             | `8765`                              | Localhost port.                               |
 
 Every setting also has a command-line equivalent. Command-line values take
@@ -208,6 +212,38 @@ separate from the read-only technical facts, checksum, and media path.
 Use **Import / Reimport** after adding new JSON records or rerunning analysis.
 The import is idempotent: one record is kept per SHA-256 ID, imported data is
 refreshed, and saved descriptive/editorial overrides remain in place.
+
+### Catalog and montage CLI
+
+The repository agent skill includes a named-command CLI for querying catalog
+data and generating montages without accepting SQL or raw media paths. Query
+commands read SQLite directly; montage commands use the running localhost
+server and therefore require `uv run app.py` to be active.
+
+```sh
+# Find ordered clip IDs and inspect saved presets.
+uv run python .agents/skills/catalog-db-query/scripts/query_catalog.py \
+  --library-root /path/to/sora-library search "garden" --limit 20
+uv run python .agents/skills/catalog-db-query/scripts/query_catalog.py \
+  --format markdown presets
+
+# Render with a preset name or ID. Omit it to use the most recently used preset.
+# Generation waits for completion by default.
+uv run python .agents/skills/catalog-db-query/scripts/query_catalog.py \
+  generate --preset "Social portrait" <first-video-id> <second-video-id>
+
+# Queue without waiting, inspect a job later, or download its completed MP4.
+uv run python .agents/skills/catalog-db-query/scripts/query_catalog.py \
+  generate --preset 3 --no-wait <first-video-id> <second-video-id>
+uv run python .agents/skills/catalog-db-query/scripts/query_catalog.py \
+  job <job-id> --wait --output ./montage.mp4
+uv run python .agents/skills/catalog-db-query/scripts/query_catalog.py \
+  --format markdown montages
+```
+
+Set `VIDEO_CATALOG_SERVER` or pass global `--server` before the command when the
+app is running on a non-default local port. Downloads refuse to overwrite an
+existing file unless `--force` is supplied.
 
 ## Data and privacy
 

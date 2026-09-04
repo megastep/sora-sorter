@@ -95,6 +95,7 @@ def technical_metadata(probe: dict[str, Any]) -> dict[str, Any]:
     orientation = "square" if display_width == display_height else "landscape" if display_width > display_height else "portrait"
     format_info = probe.get("format") or {}
     return {
+        "container": format_info.get("format_name"),
         "duration_seconds": round(float(format_info.get("duration") or 0), 3),
         "size_bytes": int(format_info.get("size") or 0),
         "bit_rate": int(format_info.get("bit_rate") or 0),
@@ -425,9 +426,9 @@ def process_video(path_string: str, options: dict[str, Any]) -> dict[str, Any]:
         return {"status": "failed", "source_path": str(source), "error": f"{type(error).__name__}: {error}", "traceback": traceback.format_exc(limit=3)}
 
 
-def deduplicate(root: Path, processed: Path, duplicates: Path, output: Path, dry_run: bool) -> dict[str, int]:
+def deduplicate(root: Path, processed: Path, duplicates: Path, output: Path, montage: Path, dry_run: bool) -> dict[str, int]:
     groups: dict[str, list[Path]] = {}
-    for video in discover(root, True, [duplicates, output]):
+    for video in discover(root, True, [duplicates, output, montage]):
         groups.setdefault(sha256_file(video), []).append(video)
     manifest, moved = [], 0
     for file_hash, paths in sorted(groups.items()):
@@ -452,6 +453,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--root", type=Path, default=os.environ.get("VIDEO_CATALOG_LIBRARY_ROOT"), help="Video library root (defaults to VIDEO_CATALOG_LIBRARY_ROOT).")
     parser.add_argument("--recursive", action="store_true", help="Include subdirectories with --all.")
     parser.add_argument("--output-dir", type=Path, help="JSON output directory (default: <root>/video_catalog_json).")
+    parser.add_argument(
+        "--montage-directory",
+        type=Path,
+        default=os.environ.get("VIDEO_CATALOG_MONTAGE_DIRECTORY"),
+        help="Generated montage directory to exclude (defaults to VIDEO_CATALOG_MONTAGE_DIRECTORY or <root>/.catalog_montages).",
+    )
     parser.add_argument("--processed-dir", type=Path, default=Path("processed"), help="Processed directory relative to root.")
     parser.add_argument("--duplicates-dir", type=Path, default=Path("duplicates"), help="Duplicate quarantine directory relative to root.")
     parser.add_argument("--no-move-processed", dest="move_processed", action="store_false", help="Leave completed videos in place.")
@@ -488,12 +495,19 @@ def main() -> int:
     processed = (root / args.processed_dir).resolve() if not args.processed_dir.is_absolute() else args.processed_dir.resolve()
     duplicates = (root / args.duplicates_dir).resolve() if not args.duplicates_dir.is_absolute() else args.duplicates_dir.resolve()
     output = (args.output_dir or root / "video_catalog_json").expanduser().resolve()
+    montage = (
+        args.montage_directory.expanduser().resolve()
+        if args.montage_directory
+        else (root / ".catalog_montages").resolve()
+    )
+    if root.is_relative_to(montage):
+        raise SystemExit("--montage-directory must not be the library root or one of its ancestors")
     if args.deduplicate:
-        result = deduplicate(root, processed, duplicates, output, args.dry_run)
+        result = deduplicate(root, processed, duplicates, output, montage, args.dry_run)
         print(f"Deduplication: groups={result['groups']}, {'would_move' if args.dry_run else 'moved'}={result['moved']}; manifest: {output / 'deduplication.json'}", flush=True)
         if not args.all and not args.videos:
             return 0
-    selected = discover(root, args.recursive, [processed, duplicates, output]) if args.all else [(root / value).resolve() if not Path(value).is_absolute() else Path(value).resolve() for value in args.videos]
+    selected = discover(root, args.recursive, [processed, duplicates, output, montage]) if args.all else [(root / value).resolve() if not Path(value).is_absolute() else Path(value).resolve() for value in args.videos]
     selected = list(dict.fromkeys(path for path in selected if is_video(path)))
     if args.limit is not None:
         selected = selected[:args.limit]

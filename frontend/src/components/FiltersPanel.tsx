@@ -1,4 +1,5 @@
 import {
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -16,6 +17,8 @@ import { LocalOfferRounded } from '@mui/icons-material';
 import { useState } from 'react';
 import type { KeywordSummary } from '../api';
 import type { Filters } from '../catalog';
+export { filterKeywordSuggestions } from './keywordSuggestions';
+import { filterKeywordSuggestions } from './keywordSuggestions';
 
 const FILTER_CHOICES: Record<string, string[]> = {
   language: ['en', 'fr', 'es', 'pt', 'ru', 'ja', 'ko', 'zh', 'none'],
@@ -37,6 +40,9 @@ export function FiltersPanel({
   keywords,
   keywordsLoading,
   keywordsError,
+  contentFlags,
+  contentFlagsLoading,
+  contentFlagsError,
   onClose,
 }: {
   filters: Filters;
@@ -44,6 +50,9 @@ export function FiltersPanel({
   keywords: KeywordSummary[];
   keywordsLoading: boolean;
   keywordsError: boolean;
+  contentFlags: string[];
+  contentFlagsLoading: boolean;
+  contentFlagsError: boolean;
   onClose?: () => void;
 }) {
   const [keywordAnchor, setKeywordAnchor] = useState<HTMLElement | null>(null);
@@ -69,13 +78,38 @@ export function FiltersPanel({
         </Button>
       </Box>
       <Stack spacing={0.25} sx={{ alignItems: 'flex-start' }}>
-        <TextField
-          label="Search"
-          value={filters.q ?? ''}
-          onChange={(event) => set('q', event.target.value)}
-          placeholder="Titles, keywords, transcripts…"
-          size="small"
+        <Autocomplete<KeywordSummary, false, false, true>
+          freeSolo
           fullWidth
+          openOnFocus={false}
+          options={filterKeywordSuggestions(keywords, filters.q ?? '')}
+          inputValue={filters.q ?? ''}
+          getOptionLabel={(option) => (typeof option === 'string' ? option : option.keyword)}
+          isOptionEqualToValue={(option, value) =>
+            typeof value !== 'string' && option.keyword === value.keyword
+          }
+          onInputChange={(_, value) => set('q', value)}
+          onChange={(_, value) => {
+            if (value && typeof value !== 'string') selectKeyword(value.keyword);
+          }}
+          loading={keywordsLoading}
+          noOptionsText={
+            keywordsError ? 'Could not load keyword suggestions.' : 'No matching keywords'
+          }
+          renderOption={(props, option) => (
+            <Box component="li" {...props} key={option.keyword}>
+              {option.count > 1 ? `${option.keyword} · ${option.count}` : option.keyword}
+            </Box>
+          )}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Search"
+              placeholder="Titles, keywords, transcripts…"
+              size="small"
+              fullWidth
+            />
+          )}
         />
         <Button
           variant="text"
@@ -161,14 +195,28 @@ export function FiltersPanel({
           </Select>
         </FormControl>
       ))}
-      <TextField
-        label="Content flag"
-        value={filters.flag ?? ''}
-        onChange={(event) => set('flag', event.target.value)}
-        placeholder="e.g. profanity"
-        size="small"
-        fullWidth
-      />
+      <FormControl size="small" fullWidth>
+        <InputLabel id="content-flag-filter-label">Content flag</InputLabel>
+        <Select
+          labelId="content-flag-filter-label"
+          label="Content flag"
+          value={filters.flag ?? ''}
+          onChange={(event) => set('flag', event.target.value)}
+          disabled={contentFlagsLoading}
+        >
+          <MenuItem value="">All</MenuItem>
+          {contentFlags.map((flag) => (
+            <MenuItem key={flag} value={flag}>
+              {flag}
+            </MenuItem>
+          ))}
+        </Select>
+        {contentFlagsError && (
+          <Typography role="alert" variant="caption" color="error.main" sx={{ mt: 0.5 }}>
+            Could not load content flags.
+          </Typography>
+        )}
+      </FormControl>
     </Stack>
   );
 }

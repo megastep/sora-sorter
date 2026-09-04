@@ -23,14 +23,13 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
   const [deletingIds, setDeletingIds] = useState<Set<number>>(() => new Set());
   const refreshVersion = useRef(0);
   const deletingIdsRef = useRef(new Set<number>());
-  const deletedIdsRef = useRef(new Set<number>());
   const mountedRef = useRef(true);
   const loadExports = useCallback(() => {
     const requestVersion = ++refreshVersion.current;
     return fetchMontageExports()
       .then((items) => {
         if (!mountedRef.current || requestVersion !== refreshVersion.current) return;
-        setExports(items.filter((item) => !deletedIdsRef.current.has(item.id)));
+        setExports(items.filter((item) => !deletingIdsRef.current.has(item.id)));
         setError(null);
       })
       .catch((reason: unknown) => {
@@ -57,7 +56,6 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
     if (deletingIdsRef.current.has(exportId)) return;
     refreshVersion.current += 1;
     deletingIdsRef.current.add(exportId);
-    deletedIdsRef.current.add(exportId);
     setDeletingIds(new Set(deletingIdsRef.current));
     void deleteMontageExport(exportId)
       .then(() => {
@@ -65,7 +63,6 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
         setPlayingId((current) => (current === exportId ? null : current));
       })
       .catch((reason: unknown) => {
-        deletedIdsRef.current.delete(exportId);
         setError(reason instanceof Error ? reason.message : 'Could not delete montage.');
       })
       .finally(() => {

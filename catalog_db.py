@@ -388,7 +388,9 @@ def _video_query(*, q: str = "", language: str = "", orientation: str = "", spee
     if speech in {"yes", "no"}: where.append("v.speech_present=?"); params.append(int(speech == "yes"))
     if favorite in {"yes", "no"}: where.append("o.favorite=?"); params.append(int(favorite == "yes"))
     if publishable in {"yes", "no"}: where.append("o.publishable=?"); params.append(int(publishable == "yes"))
-    if flag: where.append("v.content_flags_json LIKE ?"); params.append(f'%"{flag}"%')
+    if flag:
+        where.append("COALESCE(json_extract(o.descriptive_json, '$.content_flags'), v.content_flags_json) LIKE ?")
+        params.append(f'%"{flag}"%')
     clause = " WHERE " + " AND ".join(where) if where else ""
     orders = {
         "newest": "v.imported_at DESC, v.id",

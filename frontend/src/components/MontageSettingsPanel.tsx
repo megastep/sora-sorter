@@ -196,11 +196,14 @@ export function MontageSettingsPanel(props: Props) {
           type="number"
           value={settings.transitionDuration}
           slotProps={{ htmlInput: { min: minimumTransitionDuration, max: 2, step: 0.1 } }}
-          onChange={(event) =>
+          onChange={(event) => {
+            const duration = Number(event.target.value);
             props.onChange({
-              transitionDuration: Math.max(minimumTransitionDuration, Number(event.target.value)),
-            })
-          }
+              transitionDuration: Number.isFinite(duration)
+                ? Math.min(2, Math.max(minimumTransitionDuration, duration))
+                : minimumTransitionDuration,
+            });
+          }}
         />
         {['cut', 'film-cut'].includes(settings.transition) && (
           <TextField

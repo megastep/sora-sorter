@@ -146,6 +146,9 @@ class CatalogDatabaseTests(unittest.TestCase):
 
         self.assertEqual(list_content_flags(self.database), ["Flashing lights", "Profanity", "Violence"])
 
+        flagged_ids = list_video_ids(self.database, flag="Flashing lights")
+        self.assertEqual(flagged_ids, [ids["second"]])
+
     def test_migrations_are_recorded_once_for_a_new_database(self) -> None:
         database = connect(self.root / "new-catalog.sqlite")
         self.addCleanup(database.close)

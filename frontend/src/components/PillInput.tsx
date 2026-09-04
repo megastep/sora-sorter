@@ -1,6 +1,7 @@
 import { Autocomplete, TextField } from '@mui/material';
 import { useState } from 'react';
 import type { KeywordSummary } from '../api';
+import { filterKeywordSuggestions } from './keywordSuggestions';
 
 const emptySuggestions: KeywordSummary[] = [];
 
@@ -42,6 +43,7 @@ export function PillInput({
       freeSolo
       autoSelect
       options={suggestions}
+      filterOptions={(_, { inputValue: query }) => filterKeywordSuggestions(suggestions, query)}
       value={value}
       inputValue={inputValue}
       getOptionLabel={(option) => (typeof option === 'string' ? option : option.keyword)}

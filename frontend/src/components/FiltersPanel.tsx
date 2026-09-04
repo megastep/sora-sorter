@@ -17,6 +17,8 @@ import { LocalOfferRounded } from '@mui/icons-material';
 import { useState } from 'react';
 import type { KeywordSummary } from '../api';
 import type { Filters } from '../catalog';
+export { filterKeywordSuggestions } from './keywordSuggestions';
+import { filterKeywordSuggestions } from './keywordSuggestions';
 
 const FILTER_CHOICES: Record<string, string[]> = {
   language: ['en', 'fr', 'es', 'pt', 'ru', 'ja', 'ko', 'zh', 'none'],
@@ -30,15 +32,6 @@ const FILTER_CHOICES: Record<string, string[]> = {
 export const keywordCloudFontSize = (count: number, maxCount: number) => {
   if (maxCount <= 1) return 10;
   return 10 + (Math.log(count) / Math.log(maxCount)) * 14;
-};
-
-export const filterKeywordSuggestions = (keywords: KeywordSummary[], query: string) => {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  if (!normalizedQuery) return [];
-  return keywords
-    .filter(({ keyword }) => keyword.toLocaleLowerCase().includes(normalizedQuery))
-    .sort((left, right) => right.count - left.count || left.keyword.localeCompare(right.keyword))
-    .slice(0, 10);
 };
 
 export function FiltersPanel({

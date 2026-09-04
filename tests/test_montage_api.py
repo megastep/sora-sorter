@@ -1,4 +1,5 @@
 import json
+import math
 import sqlite3
 import subprocess
 import tempfile
@@ -60,6 +61,21 @@ class MontageApiTests(unittest.TestCase):
 
         with self.assertRaises(HTTPException) as raised:
             catalog_app.batch_videos(catalog_app.BatchPayload(ids=[self.first_id, unknown_id]))
+
+        self.assertEqual(raised.exception.status_code, 422)
+        self.assertIn("duration is unavailable", raised.exception.detail)
+
+    def test_rejects_non_finite_media_duration_instead_of_crashing_the_preview(self) -> None:
+        item = {
+            "id": self.first_id,
+            "title": "Broken duration",
+            "duration_seconds": math.nan,
+        }
+        with patch("app.record", return_value=item), patch("app.file_for"):
+            with self.assertRaises(HTTPException) as raised:
+                catalog_app.batch_videos(
+                    catalog_app.BatchPayload(ids=[self.first_id, self.second_id])
+                )
 
         self.assertEqual(raised.exception.status_code, 422)
         self.assertIn("duration is unavailable", raised.exception.detail)

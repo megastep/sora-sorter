@@ -63,6 +63,43 @@ const previewableSpec = (spec: MontageSpec): MontageSpec => {
   return spec;
 };
 
+const hasValidPreviewTiming = (spec: MontageSpec, previewFrames: number) =>
+  Number.isFinite(spec.transitionDuration) &&
+  spec.clips.every((clip) => Number.isFinite(clip.duration_seconds) && clip.duration_seconds > 0) &&
+  Number.isFinite(previewFrames) &&
+  previewFrames > 0;
+
+const previewState = (spec: MontageSpec) => {
+  const previewSpec = previewableSpec(spec);
+  const previewFrames = montageDurationInFrames(previewSpec);
+  return { previewSpec, previewFrames, hasValidTiming: hasValidPreviewTiming(spec, previewFrames) };
+};
+
+type PresetDeletionHandlers = {
+  setPresets: Dispatch<SetStateAction<MontagePreset[]>>;
+  setActivePresetId: Dispatch<SetStateAction<number | null>>;
+  setPresetName: Dispatch<SetStateAction<string>>;
+  setPresetError: Dispatch<SetStateAction<string | null>>;
+  setPresetDeleting: Dispatch<SetStateAction<boolean>>;
+};
+
+const deletePreset = async (presetId: number, handlers: PresetDeletionHandlers) => {
+  const { setPresets, setActivePresetId, setPresetName, setPresetError, setPresetDeleting } =
+    handlers;
+  setPresetDeleting(true);
+  try {
+    await deleteMontagePreset(presetId);
+    setPresets((current) => current.filter((preset) => preset.id !== presetId));
+    setActivePresetId(null);
+    setPresetName('');
+    setPresetError(null);
+  } catch (error) {
+    setPresetError(error instanceof Error ? error.message : 'Could not delete preset.');
+  } finally {
+    setPresetDeleting(false);
+  }
+};
+
 const initialEditorState: MontageSettings = {
   format: 'landscape',
   fillMismatchedOrientation: true,
@@ -384,25 +421,9 @@ export function MontagePage({
       setPresetSaving(false);
     }
   };
-  const deletePreset = async (presetId: number) => {
-    if (presetDeleting) return;
-    setPresetDeleting(true);
-    try {
-      await deleteMontagePreset(presetId);
-      setPresets((current) => current.filter((preset) => preset.id !== presetId));
-      setActivePresetId(null);
-      setPresetName('');
-      setPresetError(null);
-    } catch (error) {
-      setPresetError(error instanceof Error ? error.message : 'Could not delete preset.');
-    } finally {
-      setPresetDeleting(false);
-    }
-  };
   const dimensions = dimensionsFor(settings.format);
   const totalFrames = montageDurationInFrames(spec);
-  const previewSpec = useMemo<MontageSpec>(() => previewableSpec(spec), [spec]);
-  const previewFrames = montageDurationInFrames(previewSpec);
+  const { previewSpec, previewFrames, hasValidTiming } = useMemo(() => previewState(spec), [spec]);
   // fallow-ignore-next-line complexity -- capability handling and render errors must share the same user-visible export state.
   const startExport = async (softwareFallback = false) => {
     setExportStarting(true);
@@ -431,6 +452,15 @@ export function MontagePage({
       <MontageSelectionState
         loading={false}
         error={clipsError}
+        onBack={onBack}
+        onExports={onExports}
+      />
+    );
+  if (!hasValidTiming)
+    return (
+      <MontageSelectionState
+        loading={false}
+        error="A selected clip or transition duration is invalid. Reanalyze the clip or adjust the transition."
         onBack={onBack}
         onExports={onExports}
       />
@@ -512,7 +542,16 @@ export function MontagePage({
             setPresetName('');
           }}
           onSavePreset={(presetId) => void savePreset(presetId)}
-          onDeletePreset={() => void deletePreset(activePresetId!)}
+          onDeletePreset={() => {
+            if (!presetDeleting)
+              void deletePreset(activePresetId!, {
+                setPresets,
+                setActivePresetId,
+                setPresetName,
+                setPresetError,
+                setPresetDeleting,
+              });
+          }}
           onSoftwareFallback={() => void startExport(true)}
         />
       </Box>

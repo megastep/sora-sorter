@@ -241,7 +241,7 @@ def batch_videos(payload: BatchPayload):
         item = record(video_id)
         file_for(video_id)
         duration = item.get("duration_seconds")
-        if not isinstance(duration, (int, float)) or duration <= 0:
+        if not isinstance(duration, (int, float)) or not math.isfinite(duration) or duration <= 0:
             raise HTTPException(422, f"Video duration is unavailable: {video_id}. Reanalyze the clip before creating a montage.")
         items.append({"id": item["id"], "title": item["title"], "duration_seconds": duration, "width": item.get("width"), "height": item.get("height"), "orientation": item.get("orientation") or "landscape", "media_url": f"/api/videos/{video_id}/media", "poster_url": f"/api/videos/{video_id}/poster"})
     return {"items": items}

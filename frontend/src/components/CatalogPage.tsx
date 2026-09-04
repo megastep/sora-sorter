@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query';
 import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from 'react';
 import {
+  fetchContentFlags,
   fetchKeywordSummaries,
   fetchSelectionIds,
   fetchVideoPage,
@@ -62,6 +63,7 @@ export function CatalogPage({
     },
   });
   const keywords = useQuery({ queryKey: ['keywords'], queryFn: fetchKeywordSummaries });
+  const contentFlags = useQuery({ queryKey: ['content-flags'], queryFn: fetchContentFlags });
   const items = videos.data?.pages.flatMap((page) => page.items) ?? [];
   const total = videos.data?.pages[0]?.total ?? 0;
   const selected = selectedId ? (items.find((item) => item.id === selectedId) ?? null) : null;
@@ -97,7 +99,10 @@ export function CatalogPage({
           }
         : current,
     );
-    void queryClient.invalidateQueries({ queryKey: ['keywords'] });
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['keywords'] }),
+      queryClient.invalidateQueries({ queryKey: ['content-flags'] }),
+    ]);
   };
   const reimport = async () => {
     if (importing) return;
@@ -107,6 +112,7 @@ export function CatalogPage({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['videos'] }),
         queryClient.invalidateQueries({ queryKey: ['keywords'] }),
+        queryClient.invalidateQueries({ queryKey: ['content-flags'] }),
       ]);
     } finally {
       setImporting(false);
@@ -177,6 +183,9 @@ export function CatalogPage({
             keywords={keywords.data ?? []}
             keywordsLoading={keywords.isLoading}
             keywordsError={keywords.isError}
+            contentFlags={contentFlags.data ?? []}
+            contentFlagsLoading={contentFlags.isLoading}
+            contentFlagsError={contentFlags.isError}
           />
         </Paper>
         <Drawer anchor="left" open={active && filtersOpen} onClose={() => setFiltersOpen(false)}>
@@ -187,6 +196,9 @@ export function CatalogPage({
               keywords={keywords.data ?? []}
               keywordsLoading={keywords.isLoading}
               keywordsError={keywords.isError}
+              contentFlags={contentFlags.data ?? []}
+              contentFlagsLoading={contentFlags.isLoading}
+              contentFlagsError={contentFlags.isError}
               onClose={() => setFiltersOpen(false)}
             />
           </Box>

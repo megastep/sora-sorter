@@ -117,7 +117,7 @@ class MontageApiTests(unittest.TestCase):
         self.assertEqual(raised.exception.status_code, 400)
         catalog_app.validate_montage_transition(
             {
-              "transition": "cut",
+                "transition": "cut",
                 "transitionDuration": 2,
                 "clips": [{"duration_seconds": 1}, {"duration_seconds": 1}],
             }
@@ -129,6 +129,15 @@ class MontageApiTests(unittest.TestCase):
                 "clips": [{"duration_seconds": 1}, {"duration_seconds": 1}],
             }
         )
+
+    def test_reports_invalid_video_files_without_exposing_a_path(self) -> None:
+        with patch(
+            "app.subprocess.run",
+            return_value=subprocess.CompletedProcess(["ffprobe"], 1, stderr="invalid data"),
+        ):
+            result = catalog_app.video_integrity(self.first_id)
+
+        self.assertEqual(result, {"valid": False, "reason": "FFmpeg could not read this video file."})
 
     def test_renderer_spawn_failure_marks_the_job_failed(self) -> None:
         job_id = "job"

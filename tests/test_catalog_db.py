@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from catalog_db import connect, import_directory, initialize, list_keywords, list_montage_presets, list_video_ids, list_videos, migrate, save_montage_preset, update, use_montage_preset
+from catalog_db import connect, import_directory, initialize, list_content_flags, list_keywords, list_montage_presets, list_video_ids, list_videos, migrate, save_montage_preset, update, use_montage_preset
 
 
 def analysis_record(summary: str) -> dict:
@@ -135,6 +135,16 @@ class CatalogDatabaseTests(unittest.TestCase):
                 {"keyword": "garden", "count": 2},
             ],
         )
+
+    def test_content_flags_list_effective_flags_once(self) -> None:
+        ids = {"first": "a" * 64, "second": "b" * 64}
+        for name, video_id in ids.items():
+            self.write_record(name, video_id=video_id, filename=f"{name}.json")
+        import_directory(self.database, self.records)
+        update(self.database, ids["first"], {"content_flags": ["Violence", "Profanity"]})
+        update(self.database, ids["second"], {"content_flags": ["profanity", "Flashing lights"]})
+
+        self.assertEqual(list_content_flags(self.database), ["Flashing lights", "Profanity", "Violence"])
 
     def test_migrations_are_recorded_once_for_a_new_database(self) -> None:
         database = connect(self.root / "new-catalog.sqlite")

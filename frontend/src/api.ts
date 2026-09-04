@@ -3,6 +3,7 @@ import { type MontageClip, type MontageSettings, type MontageSpec } from './mont
 
 export type VideoPage = { items: Video[]; total: number };
 export type KeywordSummary = { keyword: string; count: number };
+export type VideoIntegrity = { valid: boolean; reason: string };
 
 async function request<T>(path: string, error: string, init?: RequestInit): Promise<T> {
   const response = init ? await fetch(path, init) : await fetch(path);
@@ -39,6 +40,12 @@ export const reimportCatalog = () =>
 
 export const fetchKeywordSummaries = () =>
   items<KeywordSummary>(`${API}/keywords`, 'Could not load keywords');
+
+export const fetchContentFlags = () =>
+  items<string>(`${API}/content-flags`, 'Could not load content flags');
+
+export const checkVideoIntegrity = (videoId: string) =>
+  request<VideoIntegrity>(`${API}/videos/${videoId}/integrity`, 'Could not inspect video file');
 
 export const fetchSelectionIds = (filters: Filters) =>
   items<string>(

@@ -8,7 +8,6 @@ import {
   Chip,
   IconButton,
   Rating,
-  Stack,
   Typography,
 } from '@mui/material';
 import BookmarkRounded from '@mui/icons-material/BookmarkRounded';
@@ -116,6 +115,21 @@ export function Card({
           }
           sx={{ position: 'absolute', top: 5, left: 5, p: 0.5, color: 'common.white', zIndex: 2 }}
         />
+        <Chip
+          label={`${Math.round(item.duration_seconds || 0)}s`}
+          size="small"
+          variant="outlined"
+          sx={{
+            position: 'absolute',
+            top: 9,
+            right: 9,
+            zIndex: 2,
+            bgcolor: 'rgba(0, 0, 0, 0.64)',
+            borderColor: 'rgba(255, 255, 255, 0.55)',
+            color: 'common.white',
+            pointerEvents: 'none',
+          }}
+        />
         <IconButton
           aria-label={`Play ${item.title}`}
           onClick={onPlay}
@@ -151,20 +165,9 @@ export function Card({
             '&:last-child': { pb: 1.5 },
           }}
         >
-          <Stack
-            direction="row"
-            sx={{ justifyContent: 'space-between', alignItems: 'start', gap: 1 }}
-          >
-            <Typography variant="subtitle2" sx={{ minWidth: 0 }}>
-              {item.title}
-            </Typography>
-            <Chip
-              label={`${Math.round(item.duration_seconds || 0)}s`}
-              size="small"
-              variant="outlined"
-              sx={{ flexShrink: 0 }}
-            />
-          </Stack>
+          <Typography variant="subtitle2" sx={{ minWidth: 0 }}>
+            {item.title}
+          </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minHeight: 20, mt: 0.5 }}>
             {item.rating !== null && (
               <Rating

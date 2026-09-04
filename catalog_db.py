@@ -418,3 +418,24 @@ def list_keywords(db: sqlite3.Connection) -> list[dict[str, Any]]:
         """
     ).fetchall()
     return [{"keyword": row["keyword"], "count": row["count"]} for row in rows]
+
+
+def list_content_flags(db: sqlite3.Connection) -> list[str]:
+    """Return every effective content flag currently assigned to a video."""
+    rows = db.execute(
+        """
+        SELECT MIN(flag) AS flag
+        FROM (
+          SELECT trim(CAST(flag_values.value AS TEXT)) AS flag
+          FROM videos v
+          JOIN overrides o ON o.video_id = v.id
+          CROSS JOIN json_each(
+            COALESCE(json_extract(o.descriptive_json, '$.content_flags'), v.content_flags_json)
+          ) AS flag_values
+        )
+        WHERE flag <> ''
+        GROUP BY flag COLLATE NOCASE
+        ORDER BY flag COLLATE NOCASE
+        """
+    ).fetchall()
+    return [row["flag"] for row in rows]

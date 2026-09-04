@@ -9,6 +9,7 @@ export type LikenessReference = {
 };
 export type Video = {
   id: string;
+  original_filename?: string;
   title: string;
   summary: string;
   transcript: string;

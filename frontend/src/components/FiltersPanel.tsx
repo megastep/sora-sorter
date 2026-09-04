@@ -40,6 +40,9 @@ export function FiltersPanel({
   keywords,
   keywordsLoading,
   keywordsError,
+  contentFlags,
+  contentFlagsLoading,
+  contentFlagsError,
   onClose,
 }: {
   filters: Filters;
@@ -47,6 +50,9 @@ export function FiltersPanel({
   keywords: KeywordSummary[];
   keywordsLoading: boolean;
   keywordsError: boolean;
+  contentFlags: string[];
+  contentFlagsLoading: boolean;
+  contentFlagsError: boolean;
   onClose?: () => void;
 }) {
   const [keywordAnchor, setKeywordAnchor] = useState<HTMLElement | null>(null);
@@ -189,14 +195,28 @@ export function FiltersPanel({
           </Select>
         </FormControl>
       ))}
-      <TextField
-        label="Content flag"
-        value={filters.flag ?? ''}
-        onChange={(event) => set('flag', event.target.value)}
-        placeholder="e.g. profanity"
-        size="small"
-        fullWidth
-      />
+      <FormControl size="small" fullWidth>
+        <InputLabel id="content-flag-filter-label">Content flag</InputLabel>
+        <Select
+          labelId="content-flag-filter-label"
+          label="Content flag"
+          value={filters.flag ?? ''}
+          onChange={(event) => set('flag', event.target.value)}
+          disabled={contentFlagsLoading}
+        >
+          <MenuItem value="">All</MenuItem>
+          {contentFlags.map((flag) => (
+            <MenuItem key={flag} value={flag}>
+              {flag}
+            </MenuItem>
+          ))}
+        </Select>
+        {contentFlagsError && (
+          <Typography role="alert" variant="caption" color="error.main" sx={{ mt: 0.5 }}>
+            Could not load content flags.
+          </Typography>
+        )}
+      </FormControl>
     </Stack>
   );
 }

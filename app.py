@@ -27,7 +27,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, FiniteFloat, model_validator
 
-from catalog_db import _effective, connect, delete_montage_export, delete_montage_preset, import_directory, initialize, list_keywords, list_montage_exports, list_montage_presets, list_video_ids, list_videos, montage_export, record_montage_export, save_montage_preset, update, use_montage_preset
+from catalog_db import _effective, connect, delete_montage_export, delete_montage_preset, import_directory, initialize, list_content_flags, list_keywords, list_montage_exports, list_montage_presets, list_video_ids, list_videos, montage_export, record_montage_export, save_montage_preset, update, use_montage_preset
 
 
 @dataclass(frozen=True)
@@ -257,6 +257,15 @@ def keywords():
         connection.close()
 
 
+@app.get("/api/content-flags")
+def content_flags():
+    connection = db()
+    try:
+        return {"items": list_content_flags(connection)}
+    finally:
+        connection.close()
+
+
 @app.get("/api/videos/{video_id}")
 def get_video(video_id: str):
     return record(video_id)
@@ -285,6 +294,43 @@ def reimport():
 @app.get("/api/videos/{video_id}/media")
 def media(video_id: str):
     return FileResponse(file_for(video_id), media_type="video/mp4")
+
+
+@app.get("/api/videos/{video_id}/integrity")
+def video_integrity(video_id: str):
+    try:
+        probe = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "stream=codec_type:format=duration",
+                "-of",
+                "json",
+                str(file_for(video_id)),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {"valid": False, "reason": "FFmpeg could not inspect this video file."}
+    if probe.returncode != 0:
+        return {"valid": False, "reason": "FFmpeg could not read this video file."}
+    try:
+        details = json.loads(probe.stdout)
+    except json.JSONDecodeError:
+        return {"valid": False, "reason": "FFmpeg returned invalid video metadata."}
+    if not any(stream.get("codec_type") == "video" for stream in details.get("streams", [])):
+        return {"valid": False, "reason": "This file does not contain a video stream."}
+    duration = details.get("format", {}).get("duration")
+    try:
+        if not math.isfinite(float(duration)) or float(duration) <= 0:
+            return {"valid": False, "reason": "This video has no readable duration."}
+    except (TypeError, ValueError):
+        return {"valid": False, "reason": "This video has no readable duration."}
+    return {"valid": True, "reason": "Video file is readable."}
 
 
 @app.get("/api/videos/{video_id}/poster")

@@ -382,7 +382,6 @@ export function MontagePage({
   const [presetsReady, setPresetsReady] = useState(false);
   const [presetsError, setPresetsError] = useState<string | null>(null);
   const hasInitializedEditor = useRef(false);
-  const applyRecoveredPreset = useRef(false);
   const presetSelectionVersion = useRef(0);
   const presetUseQueue = useRef<Promise<void> | null>(null);
   const playerRef = useRef<PlayerRef>(null);
@@ -441,16 +440,11 @@ export function MontagePage({
         setPresets(items);
         setPresetsError(null);
         setPresetsReady(true);
-        if (applyRecoveredPreset.current && items[0]) {
-          hasInitializedEditor.current = false;
-          applyRecoveredPreset.current = false;
-        }
       })
       .catch((error: unknown) => {
         if (!isCurrent) return;
         setPresetsError(error instanceof Error ? error.message : 'Could not load presets.');
         setPresetsReady(true);
-        applyRecoveredPreset.current = true;
       });
     return () => {
       isCurrent = false;

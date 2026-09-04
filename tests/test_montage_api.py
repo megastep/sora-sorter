@@ -239,6 +239,40 @@ class MontageApiTests(unittest.TestCase):
         self.assertEqual(status["error_code"], "render_failed")
         self.assertTrue(process.terminated)
 
+    def test_renderer_starting_during_shutdown_is_terminated_without_registration(self) -> None:
+        class Process:
+            stdout = iter(())
+
+            def __init__(self) -> None:
+                self.terminated = False
+
+            def poll(self) -> None:
+                return None
+
+            def terminate(self) -> None:
+                self.terminated = True
+
+            def wait(self, timeout: float | None = None) -> int:
+                return 1
+
+        job_id = "job"
+        request_path = self.root / "request.json"
+        request_path.write_text("{}", encoding="utf-8")
+        catalog_app.jobs[job_id] = {
+            "id": job_id,
+            "status": "queued",
+            "output": str(self.root / "result.mp4"),
+        }
+        process = Process()
+        catalog_app.server_stopping = True
+
+        with patch("app.subprocess.Popen", return_value=process):
+            catalog_app._render_job(job_id, request_path)
+
+        self.assertTrue(process.terminated)
+        self.assertEqual(catalog_app.montage_status(job_id)["status"], "failed")
+        self.assertNotIn(job_id, catalog_app.render_processes)
+
     def test_server_shutdown_terminates_active_renderer_and_removes_staging_artifacts(self) -> None:
         class Process:
             def __init__(self) -> None:

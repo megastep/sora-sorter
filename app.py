@@ -454,7 +454,21 @@ def _render_job(job_id: str, request_path: Path) -> None:
             terminate_renderer(process)
             return
         with render_process_lock:
-            render_processes[job_id] = (process, request_path, rendered_output_path(job))
+            if server_stopping:
+                stopping = True
+            else:
+                stopping = False
+                render_processes[job_id] = (process, request_path, rendered_output_path(job))
+        if stopping:
+            terminate_renderer(process)
+            update_job(
+                job_id,
+                status="failed",
+                error_code="render_interrupted",
+                error="Montage rendering was interrupted while the server was stopping.",
+            )
+            remove_rendered_output(job)
+            return
         assert process.stdout is not None
         renderer_output: list[str] = []
         output_queue: Queue[str | None] = Queue()

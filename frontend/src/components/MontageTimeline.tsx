@@ -1,5 +1,5 @@
 import { DeleteOutlineRounded, DragIndicatorRounded } from '@mui/icons-material';
-import { Box, Button, Paper, Typography } from '@mui/material';
+import { Box, IconButton, Paper, Tooltip, Typography } from '@mui/material';
 import { useRef } from 'react';
 import { type MontageClip } from '../montage';
 
@@ -42,6 +42,20 @@ export function MontageTimeline({
               <DragIndicatorRounded color="action" fontSize="small" />
               <Typography variant="caption">{index + 1}</Typography>
             </Box>
+            <Tooltip title={clips.length <= 2 ? 'Keep at least two clips' : 'Remove clip'}>
+              <span>
+                <IconButton
+                  size="small"
+                  color="error"
+                  aria-label={`Remove ${clip.title} from montage`}
+                  disabled={clips.length <= 2}
+                  onClick={() => onRemove(clip.id)}
+                  sx={{ position: 'absolute', top: 4, right: 4 }}
+                >
+                  <DeleteOutlineRounded fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
             <Box
               component="img"
               src={clip.poster_url}
@@ -52,31 +66,22 @@ export function MontageTimeline({
               {clip.title}
             </Typography>
             <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
-              <Button
+              <IconButton
                 size="small"
                 aria-label={`Move ${clip.title} earlier`}
                 disabled={index === 0}
                 onClick={() => move(index, index - 1)}
               >
                 ←
-              </Button>
-              <Button
+              </IconButton>
+              <IconButton
                 size="small"
                 aria-label={`Move ${clip.title} later`}
                 disabled={index === clips.length - 1}
                 onClick={() => move(index, index + 1)}
               >
                 →
-              </Button>
-              <Button
-                size="small"
-                color="error"
-                aria-label={`Remove ${clip.title} from montage`}
-                disabled={clips.length <= 2}
-                onClick={() => onRemove(clip.id)}
-              >
-                <DeleteOutlineRounded fontSize="small" />
-              </Button>
+              </IconButton>
             </Box>
           </Paper>
         ))}

@@ -129,6 +129,9 @@ export function CatalogPage({
       setSelectionError(error instanceof Error ? error.message : 'Could not select videos.');
     }
   };
+  useEffect(() => {
+    selectionRequestVersion.current += 1;
+  }, [filters]);
   const loadingMessage = videos.isLoading
     ? 'Loading videos…'
     : videos.isFetchingNextPage

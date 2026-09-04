@@ -364,28 +364,29 @@ export function MontagePage({
     selectedIdsRef.current = ids;
   }, [ids]);
   useEffect(() => {
-    let active = true;
+    if (!active) return;
+    let isCurrent = true;
     const selectedIds = selectedIdsRef.current;
     setClips([]);
     setClipsReady(false);
     // fallow-ignore-next-line complexity -- initializes title and orientation together from the selected first clip.
     void fetchMontageClips(selectedIds)
       .then((items) => {
-        if (!active) return;
+        if (!isCurrent) return;
         setClips(items);
         setClipsError(null);
         setClipsReady(true);
       })
       .catch((error: unknown) => {
-        if (!active) return;
+        if (!isCurrent) return;
         setClips([]);
         setClipsError(error instanceof Error ? error.message : 'Could not load selected clips.');
         setClipsReady(true);
       });
     return () => {
-      active = false;
+      isCurrent = false;
     };
-  }, [clipMembershipKey]);
+  }, [active, clipMembershipKey]);
   useEffect(() => {
     if (!active) playerRef.current?.pause();
   }, [active]);
@@ -470,6 +471,7 @@ export function MontagePage({
   const { previewSpec, previewFrames, timingError } = useMemo(() => previewState(spec), [spec]);
   // fallow-ignore-next-line complexity -- capability handling and render errors must share the same user-visible export state.
   const startExport = async (softwareFallback = false) => {
+    const exportSpec = previewableSpec(specRef.current);
     setExportStarting(true);
     try {
       setExportError(null);
@@ -482,7 +484,7 @@ export function MontagePage({
           return;
         }
       }
-      setJob(await renderMontage(previewableSpec(specRef.current), softwareFallback));
+      setJob(await renderMontage(exportSpec, softwareFallback));
     } catch (error) {
       setExportError(error instanceof Error ? error.message : 'Could not start the export.');
     } finally {

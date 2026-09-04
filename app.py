@@ -642,7 +642,12 @@ def create_montage(payload: MontageRequest, request: Request):
         request_path.write_text(json.dumps({"spec": spec, "output": str(output), "software_fallback": payload.software_fallback}), encoding="utf-8")
         jobs[job_id] = {"id": job_id, "title": spec["title"], "duration_seconds": montage_duration_seconds(spec), "status": "queued", "progress": 0, "stage": "queued", "output": str(output)}
         response = job_response(jobs[job_id])
-        threading.Thread(target=_render_job, args=(job_id, request_path), daemon=True).start()
+        try:
+            threading.Thread(target=_render_job, args=(job_id, request_path), daemon=True).start()
+        except RuntimeError as error:
+            jobs.pop(job_id, None)
+            request_path.unlink(missing_ok=True)
+            raise HTTPException(500, "Could not start montage export") from error
         return response
 
 
@@ -729,17 +734,22 @@ def remove_montage_export(export_id: int):
             output.replace(staged)
         except OSError as error:
             raise HTTPException(500, "Could not prepare montage file for deletion") from error
-    connection = db()
+    connection = None
     try:
+        connection = db()
         delete_montage_export(connection, export_id)
     except (KeyError, sqlite3.Error) as error:
         if staged.exists():
-            staged.replace(output)
+            try:
+                staged.replace(output)
+            except OSError:
+                pass
         if isinstance(error, KeyError):
             raise HTTPException(404, "Montage export not found") from error
         raise HTTPException(500, "Could not delete montage export") from error
     finally:
-        connection.close()
+        if connection is not None:
+            connection.close()
     if staged.exists():
         try:
             staged.unlink()

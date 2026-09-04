@@ -174,6 +174,7 @@ function TitleCard({
         opacity: cardOpacity,
       }}
     >
+      {reveal && <Audio src={src} volume={0} />}
       <Freeze frame={freezeFrame}>
         <FittedVideo
           src={src}

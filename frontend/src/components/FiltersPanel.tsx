@@ -80,6 +80,7 @@ export function FiltersPanel({
       <Stack spacing={0.25} sx={{ alignItems: 'flex-start' }}>
         <Autocomplete<KeywordSummary, false, false, true>
           freeSolo
+          fullWidth
           openOnFocus={false}
           options={filterKeywordSuggestions(keywords, filters.q ?? '')}
           getOptionLabel={(option) => (typeof option === 'string' ? option : option.keyword)}

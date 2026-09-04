@@ -248,6 +248,7 @@ export function CatalogPage({
             item={selected}
             onSaved={saveVideo}
             onClose={() => setSelectedId(null)}
+            keywordSuggestions={keywords.data ?? []}
           />
         )}
       </Box>
@@ -260,6 +261,7 @@ export function CatalogPage({
               onSaved={saveVideo}
               onClose={() => setSelectedId(null)}
               drawer
+              keywordSuggestions={keywords.data ?? []}
             />
           </Box>
         </Drawer>

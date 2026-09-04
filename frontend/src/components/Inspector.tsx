@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import { CloseRounded, ExpandMoreRounded, SaveRounded } from '@mui/icons-material';
 import { useState } from 'react';
+import type { KeywordSummary } from '../api';
 import { API, toDraft, type Draft, type ReviewStatus, type Video } from '../catalog';
 import { catalogDesign } from '../theme';
 import { PillInput } from './PillInput';
@@ -31,11 +32,13 @@ export function Inspector({
   onSaved,
   onClose,
   drawer = false,
+  keywordSuggestions = [],
 }: {
   item: Video;
   onSaved: (value: Video) => void;
   onClose: () => void;
   drawer?: boolean;
+  keywordSuggestions?: KeywordSummary[];
 }) {
   const [draft, setDraft] = useState<Draft>(() => toDraft(item));
   const [error, setError] = useState('');
@@ -148,6 +151,7 @@ export function Inspector({
           placeholder="Add a keyword, then press Enter or comma"
           value={draft.keywords}
           onChange={(value) => set('keywords', value)}
+          suggestions={keywordSuggestions}
         />
         <TextField
           label="Language"

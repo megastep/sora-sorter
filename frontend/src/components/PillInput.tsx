@@ -1,5 +1,6 @@
 import { Autocomplete, TextField } from '@mui/material';
 import { useState } from 'react';
+import type { KeywordSummary } from '../api';
 
 export const normalizePills = (values: readonly string[]) => {
   const seen = new Set<string>();
@@ -23,24 +24,33 @@ export function PillInput({
   placeholder,
   value,
   onChange,
+  suggestions = [],
 }: {
   label: string;
   placeholder: string;
   value: string[];
   onChange: (value: string[]) => void;
+  suggestions?: KeywordSummary[];
 }) {
   const [inputValue, setInputValue] = useState('');
 
   return (
-    <Autocomplete<string, true, false, true>
+    <Autocomplete<KeywordSummary | string, true, false, true>
       multiple
       freeSolo
       autoSelect
-      options={[]}
+      options={suggestions}
       value={value}
       inputValue={inputValue}
-      onChange={(_, values) => {
-        onChange(normalizePills(values));
+      getOptionLabel={(option) => (typeof option === 'string' ? option : option.keyword)}
+      onChange={(_, selectedValues) => {
+        onChange(
+          normalizePills(
+            selectedValues.map((selectedValue) =>
+              typeof selectedValue === 'string' ? selectedValue : selectedValue.keyword,
+            ),
+          ),
+        );
         setInputValue('');
       }}
       onInputChange={(_, nextValue, reason) => {
@@ -54,6 +64,15 @@ export function PillInput({
         const pills = normalizePills([...value, ...parts]);
         if (pills.length !== value.length) onChange(pills);
         setInputValue(pending);
+      }}
+      renderOption={(props, option) => {
+        const keyword = typeof option === 'string' ? option : option.keyword;
+        const count = typeof option === 'string' ? 0 : option.count;
+        return (
+          <li {...props} key={keyword}>
+            {count > 1 ? `${keyword} · ${count}` : keyword}
+          </li>
+        );
       }}
       renderInput={(params) => <TextField {...params} label={label} placeholder={placeholder} />}
     />

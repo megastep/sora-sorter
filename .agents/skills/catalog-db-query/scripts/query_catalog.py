@@ -214,11 +214,7 @@ def api_request(
 
 def list_presets(args: argparse.Namespace) -> dict[str, Any]:
     payload = api_request(args.server, "GET", "/api/montage-presets")
-    items = [
-        {key: value for key, value in preset.items() if key != "settings_json"}
-        for preset in payload["items"]
-    ]
-    return {"kind": "presets", "items": items}
+    return {"kind": "presets", "items": payload["items"]}
 
 
 def list_montages(args: argparse.Namespace) -> dict[str, Any]:

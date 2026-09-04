@@ -12,7 +12,6 @@ const request = isProbe
   : JSON.parse(await readFile(requestPath, 'utf8'));
 const serveUrl = await bundle({
   entryPoint: resolve('src/remotion/Root.tsx'),
-  webpackOverride: (config) => config,
 });
 const composition = await selectComposition({
   serveUrl,

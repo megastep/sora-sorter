@@ -232,9 +232,10 @@ export function CatalogPage({
                 onSelect={() => setSelectedId(item.id)}
                 onPlay={() => openLightbox(item, true)}
                 selectionIndex={montageSelection.indexOf(item.id)}
-                onToggleSelection={() =>
-                  setMontageSelection((current) => toggleSelection(current, item.id))
-                }
+                onToggleSelection={() => {
+                  selectionRequestVersion.current += 1;
+                  setMontageSelection((current) => toggleSelection(current, item.id));
+                }}
               />
             ))}
           </Box>

@@ -169,35 +169,49 @@ function useActiveRenderJob(setExportError: Dispatch<SetStateAction<string | nul
     return id ? { id, status: 'rendering', progress: 0, stage: 'Reconnecting to export…' } : null;
   });
   const statusFailureCount = useRef(0);
+  const activeJobId = useRef<string | null>(job?.id ?? null);
+  const pollInFlight = useRef(false);
+
+  useEffect(() => {
+    activeJobId.current = job?.id ?? null;
+    statusFailureCount.current = 0;
+  }, [job?.id]);
 
   useEffect(() => {
     if (!job || !['queued', 'rendering'].includes(job.status)) return;
-    const timer = window.setInterval(
-      () =>
-        void fetchRenderJob(job.id)
-          .then((nextJob) => {
-            statusFailureCount.current = 0;
-            setExportError(null);
-            setJob(nextJob);
-            if (nextJob.status === 'completed')
-              window.dispatchEvent(new Event('montage-export-completed'));
-          })
-          .catch((error: unknown) => {
-            const message =
-              error instanceof Error ? error.message : 'Export status is unavailable.';
-            if (isMissingRenderJob(error)) {
-              setJob((current) =>
-                current ? { ...current, status: 'failed', error: message } : current,
-              );
-              return;
-            }
-            statusFailureCount.current += 1;
-            setExportError(
-              `Could not refresh export progress (attempt ${statusFailureCount.current}); retrying.`,
+    const jobId = job.id;
+    const poll = () => {
+      if (pollInFlight.current) return;
+      pollInFlight.current = true;
+      void fetchRenderJob(jobId)
+        .then((nextJob) => {
+          if (activeJobId.current !== jobId) return;
+          statusFailureCount.current = 0;
+          setExportError(null);
+          setJob((current) => (current?.id === jobId ? nextJob : current));
+          if (nextJob.status === 'completed')
+            window.dispatchEvent(new Event('montage-export-completed'));
+        })
+        .catch((error: unknown) => {
+          if (activeJobId.current !== jobId) return;
+          const message = error instanceof Error ? error.message : 'Export status is unavailable.';
+          if (isMissingRenderJob(error)) {
+            setJob((current) =>
+              current?.id === jobId ? { ...current, status: 'failed', error: message } : current,
             );
-          }),
-      900,
-    );
+            return;
+          }
+          statusFailureCount.current += 1;
+          setExportError(
+            `Could not refresh export progress (attempt ${statusFailureCount.current}); retrying.`,
+          );
+        })
+        .finally(() => {
+          pollInFlight.current = false;
+        });
+    };
+    poll();
+    const timer = window.setInterval(poll, 900);
     return () => window.clearInterval(timer);
   }, [job, setExportError]);
 

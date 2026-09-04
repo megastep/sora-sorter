@@ -452,6 +452,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--root", type=Path, default=os.environ.get("VIDEO_CATALOG_LIBRARY_ROOT"), help="Video library root (defaults to VIDEO_CATALOG_LIBRARY_ROOT).")
     parser.add_argument("--recursive", action="store_true", help="Include subdirectories with --all.")
     parser.add_argument("--output-dir", type=Path, help="JSON output directory (default: <root>/video_catalog_json).")
+    parser.add_argument(
+        "--montage-directory",
+        type=Path,
+        default=os.environ.get("VIDEO_CATALOG_MONTAGE_DIRECTORY"),
+        help="Generated montage directory to exclude (defaults to VIDEO_CATALOG_MONTAGE_DIRECTORY or <root>/.catalog_montages).",
+    )
     parser.add_argument("--processed-dir", type=Path, default=Path("processed"), help="Processed directory relative to root.")
     parser.add_argument("--duplicates-dir", type=Path, default=Path("duplicates"), help="Duplicate quarantine directory relative to root.")
     parser.add_argument("--no-move-processed", dest="move_processed", action="store_false", help="Leave completed videos in place.")
@@ -488,7 +494,11 @@ def main() -> int:
     processed = (root / args.processed_dir).resolve() if not args.processed_dir.is_absolute() else args.processed_dir.resolve()
     duplicates = (root / args.duplicates_dir).resolve() if not args.duplicates_dir.is_absolute() else args.duplicates_dir.resolve()
     output = (args.output_dir or root / "video_catalog_json").expanduser().resolve()
-    montage = (root / ".catalog_montages").resolve()
+    montage = (
+        args.montage_directory.expanduser().resolve()
+        if args.montage_directory
+        else (root / ".catalog_montages").resolve()
+    )
     if args.deduplicate:
         result = deduplicate(root, processed, duplicates, output, montage, args.dry_run)
         print(f"Deduplication: groups={result['groups']}, {'would_move' if args.dry_run else 'moved'}={result['moved']}; manifest: {output / 'deduplication.json'}", flush=True)

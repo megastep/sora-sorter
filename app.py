@@ -385,13 +385,16 @@ def _render_job(job_id: str, request_path: Path) -> None:
             try:
                 persist_montage_export(job_id, job)
             except Exception as error:
-                Path(str(job["output"])).unlink(missing_ok=True)
                 update_job(
                     job_id,
                     status="failed",
                     error_code="export_persistence_failed",
                     error=f"Rendered video could not be recorded: {error}",
                 )
+                try:
+                    Path(str(job["output"])).unlink(missing_ok=True)
+                except OSError:
+                    pass
             else:
                 update_job(job_id, status="completed", progress=1, stage="completed")
     finally:

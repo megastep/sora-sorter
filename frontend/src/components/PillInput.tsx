@@ -36,14 +36,15 @@ export function PillInput({
   suggestions?: KeywordSummary[];
 }) {
   const [inputValue, setInputValue] = useState('');
+  const matchingSuggestions = filterKeywordSuggestions(suggestions, inputValue);
 
   return (
     <Autocomplete<KeywordSummary | string, true, false, true>
       multiple
       freeSolo
       autoSelect
-      options={suggestions}
-      filterOptions={(_, { inputValue: query }) => filterKeywordSuggestions(suggestions, query)}
+      options={matchingSuggestions}
+      filterOptions={(options) => options}
       value={value}
       inputValue={inputValue}
       getOptionLabel={(option) => (typeof option === 'string' ? option : option.keyword)}

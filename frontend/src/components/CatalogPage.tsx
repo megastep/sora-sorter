@@ -49,6 +49,7 @@ export function CatalogPage({
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const sentinel = useRef<HTMLDivElement | null>(null);
+  const selectionRequestVersion = useRef(0);
   const queryClient = useQueryClient();
   const desktopInspector = useMediaQuery('(min-width: 1280px)');
   const videos = useInfiniteQuery({
@@ -112,8 +113,10 @@ export function CatalogPage({
     }
   };
   const appendAll = async () => {
+    const requestVersion = ++selectionRequestVersion.current;
     try {
       const ids = await fetchSelectionIds(filters);
+      if (requestVersion !== selectionRequestVersion.current) return;
       setMontageSelection((current) => addToSelection(current, ids));
       setSelectionError(null);
     } catch (error) {
@@ -139,7 +142,10 @@ export function CatalogPage({
         colorMode={colorMode}
         importing={importing}
         onSelectAll={() => void appendAll()}
-        onUnselectAll={() => setMontageSelection([])}
+        onUnselectAll={() => {
+          selectionRequestVersion.current += 1;
+          setMontageSelection([]);
+        }}
         onMontage={onMontage}
         onExports={onExports}
         onToggleColorMode={onToggleColorMode}

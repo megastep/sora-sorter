@@ -16,14 +16,20 @@ const formatDuration = (seconds: number | null) => {
 
 export function MontageExportsPage({ onBack }: { onBack: () => void }) {
   const [exports, setExports] = useState<MontageExport[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [playingId, setPlayingId] = useState<number | null>(null);
   useEffect(() => {
-    void fetchMontageExports()
-      .then(setExports)
-      .catch((reason: unknown) =>
-        setError(reason instanceof Error ? reason.message : 'Could not load generated montages.'),
-      );
+    const loadExports = () =>
+      fetchMontageExports()
+        .then(setExports)
+        .catch((reason: unknown) =>
+          setError(reason instanceof Error ? reason.message : 'Could not load generated montages.'),
+        )
+        .finally(() => setLoading(false));
+    void loadExports();
+    window.addEventListener('montage-export-completed', loadExports);
+    return () => window.removeEventListener('montage-export-completed', loadExports);
   }, []);
   return (
     <Box sx={{ maxWidth: 900, mx: 'auto', p: { xs: 2, md: 4 } }}>
@@ -37,7 +43,11 @@ export function MontageExportsPage({ onBack }: { onBack: () => void }) {
         Previously rendered MP4 files available on this device.
       </Typography>
       <Stack spacing={1.5}>
-        {error && exports.length === 0 ? (
+        {loading ? (
+          <Paper sx={{ p: 3 }}>
+            <Typography>Loading generated montages…</Typography>
+          </Paper>
+        ) : error && exports.length === 0 ? (
           <Paper role="alert" sx={{ p: 3, color: 'error.main' }}>
             <Typography>{error}</Typography>
           </Paper>

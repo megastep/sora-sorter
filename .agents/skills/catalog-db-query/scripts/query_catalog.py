@@ -265,7 +265,17 @@ def wait_for_job(args: argparse.Namespace, job_id: str) -> dict[str, Any]:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise ValueError(f"Timed out waiting for montage job {job_id}")
-        job = api_request(args.server, "GET", f"/api/montages/{job_id}", timeout=remaining)
+        try:
+            job = api_request(args.server, "GET", f"/api/montages/{job_id}", timeout=remaining)
+        except ValueError as error:
+            message = str(error)
+            if "Could not reach catalog server" not in message and "timed out" not in message:
+                raise
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ValueError(f"Timed out waiting for montage job {job_id}: {message}") from None
+            time.sleep(min(args.poll_interval, remaining))
+            continue
         if job["status"] in {"completed", "failed"}:
             return job
         if time.monotonic() >= deadline:

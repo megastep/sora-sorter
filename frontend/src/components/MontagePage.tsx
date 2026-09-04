@@ -12,7 +12,15 @@ import {
   Typography,
 } from '@mui/material';
 import { Player, type PlayerRef } from '@remotion/player';
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import {
   fetchMontageCapabilities,
   fetchMontageClips,
@@ -41,6 +49,7 @@ const formatDuration = (totalFrames: number) => {
 
 const isMissingRenderJob = (error: unknown) =>
   error instanceof Error && error.message.includes('(404)');
+const activeRenderJobStorageKey = 'video-catalog-active-montage-job';
 
 const initialEditorState: MontageSettings = {
   format: 'landscape',
@@ -154,6 +163,55 @@ function MontageSelectionState({
   );
 }
 
+function useActiveRenderJob(setExportError: Dispatch<SetStateAction<string | null>>) {
+  const [job, setJob] = useState<RenderJob | null>(() => {
+    const id = window.sessionStorage.getItem(activeRenderJobStorageKey);
+    return id ? { id, status: 'rendering', progress: 0, stage: 'Reconnecting to export…' } : null;
+  });
+  const statusFailureCount = useRef(0);
+
+  useEffect(() => {
+    if (!job || !['queued', 'rendering'].includes(job.status)) return;
+    const timer = window.setInterval(
+      () =>
+        void fetchRenderJob(job.id)
+          .then((nextJob) => {
+            statusFailureCount.current = 0;
+            setExportError(null);
+            setJob(nextJob);
+            if (nextJob.status === 'completed')
+              window.dispatchEvent(new Event('montage-export-completed'));
+          })
+          .catch((error: unknown) => {
+            const message =
+              error instanceof Error ? error.message : 'Export status is unavailable.';
+            if (isMissingRenderJob(error)) {
+              setJob((current) =>
+                current ? { ...current, status: 'failed', error: message } : current,
+              );
+              return;
+            }
+            statusFailureCount.current += 1;
+            setExportError(
+              `Could not refresh export progress (attempt ${statusFailureCount.current}); retrying.`,
+            );
+          }),
+      900,
+    );
+    return () => window.clearInterval(timer);
+  }, [job, setExportError]);
+
+  useEffect(() => {
+    if (!job) return;
+    if (['queued', 'rendering'].includes(job.status)) {
+      window.sessionStorage.setItem(activeRenderJobStorageKey, job.id);
+    } else {
+      window.sessionStorage.removeItem(activeRenderJobStorageKey);
+    }
+  }, [job]);
+  return [job, setJob] as const;
+}
+
 // fallow-ignore-next-line complexity -- editor settings are intentionally colocated with the shared preview state.
 export function MontagePage({
   ids,
@@ -173,24 +231,31 @@ export function MontagePage({
   const [presets, setPresets] = useState<MontagePreset[]>([]);
   const [presetName, setPresetName] = useState('');
   const [activePresetId, setActivePresetId] = useState<number | null>(null);
-  const [job, setJob] = useState<RenderJob | null>(null);
   const [accelerationReason, setAccelerationReason] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportStarting, setExportStarting] = useState(false);
   const [presetError, setPresetError] = useState<string | null>(null);
+  const [presetSaving, setPresetSaving] = useState(false);
   const [clipsReady, setClipsReady] = useState(false);
   const [clipsError, setClipsError] = useState<string | null>(null);
   const [presetsReady, setPresetsReady] = useState(false);
   const [presetsError, setPresetsError] = useState<string | null>(null);
   const hasInitializedEditor = useRef(false);
-  const statusFailureCount = useRef(0);
   const playerRef = useRef<PlayerRef>(null);
+  const specRef = useRef<MontageSpec>({ clips: [], ...initialEditorState });
+  const clipMembershipKey = useMemo(() => [...ids].sort().join('\u0000'), [ids]);
+  const selectedIdsRef = useRef(ids);
+  const [job, setJob] = useActiveRenderJob(setExportError);
+  useEffect(() => {
+    selectedIdsRef.current = ids;
+  }, [ids]);
   useEffect(() => {
     let active = true;
+    const selectedIds = selectedIdsRef.current;
     setClips([]);
     setClipsReady(false);
     // fallow-ignore-next-line complexity -- initializes title and orientation together from the selected first clip.
-    void fetchMontageClips(ids)
+    void fetchMontageClips(selectedIds)
       .then((items) => {
         if (!active) return;
         setClips(items);
@@ -206,12 +271,15 @@ export function MontagePage({
     return () => {
       active = false;
     };
-  }, [ids]);
+  }, [clipMembershipKey]);
   useEffect(() => {
     if (!active) playerRef.current?.pause();
   }, [active]);
   const settings = editor;
   const spec = useMemo<MontageSpec>(() => ({ clips, ...settings }), [clips, settings]);
+  useEffect(() => {
+    specRef.current = spec;
+  }, [spec]);
   const applyPreset = (preset: MontagePreset) => {
     const next = preset.settings;
     dispatchEditor({
@@ -234,7 +302,7 @@ export function MontagePage({
   }, []);
   // fallow-ignore-next-line complexity -- initial editor settings must atomically account for both loaded clips and presets.
   useEffect(() => {
-    if (hasInitializedEditor.current || !clipsReady || !presetsReady) return;
+    if (hasInitializedEditor.current || !clipsReady || !presetsReady || clips.length < 2) return;
     hasInitializedEditor.current = true;
     const preset = presets[0];
     if (preset) {
@@ -254,6 +322,8 @@ export function MontagePage({
   }, [clips, clipsReady, presets, presetsReady]);
   const refreshPresets = async () => setPresets(await fetchMontagePresets());
   const savePreset = async (presetId?: number) => {
+    if (presetSaving) return;
+    setPresetSaving(true);
     try {
       const saved = await saveMontagePreset(presetName, settings, presetId);
       setActivePresetId(saved.id);
@@ -261,6 +331,8 @@ export function MontagePage({
       await refreshPresets();
     } catch (error) {
       setPresetError(error instanceof Error ? error.message : 'Could not save preset.');
+    } finally {
+      setPresetSaving(false);
     }
   };
   const dimensions = dimensionsFor(settings.format);
@@ -277,40 +349,6 @@ export function MontagePage({
     return spec;
   }, [clips, spec]);
   const previewFrames = montageDurationInFrames(previewSpec);
-  useEffect(() => {
-    if (!job || !['queued', 'rendering'].includes(job.status)) return;
-    const timer = window.setInterval(
-      () =>
-        void fetchRenderJob(job.id)
-          .then((nextJob) => {
-            statusFailureCount.current = 0;
-            setExportError(null);
-            setJob(nextJob);
-          })
-          .catch((error: unknown) => {
-            const message =
-              error instanceof Error ? error.message : 'Export status is unavailable.';
-            if (isMissingRenderJob(error)) {
-              setJob((current) =>
-                current
-                  ? {
-                      ...current,
-                      status: 'failed',
-                      error: message,
-                    }
-                  : current,
-              );
-              return;
-            }
-            statusFailureCount.current += 1;
-            setExportError(
-              `Could not refresh export progress (attempt ${statusFailureCount.current}); retrying.`,
-            );
-          }),
-      900,
-    );
-    return () => window.clearInterval(timer);
-  }, [job]);
   // fallow-ignore-next-line complexity -- capability handling and render errors must share the same user-visible export state.
   const startExport = async (softwareFallback = false) => {
     setExportStarting(true);
@@ -325,14 +363,14 @@ export function MontagePage({
           return;
         }
       }
-      setJob(await renderMontage(spec, softwareFallback));
+      setJob(await renderMontage(specRef.current, softwareFallback));
     } catch (error) {
       setExportError(error instanceof Error ? error.message : 'Could not start the export.');
     } finally {
       setExportStarting(false);
     }
   };
-  if (!clipsReady)
+  if (!clipsReady || !presetsReady)
     return <MontageSelectionState loading error={null} onBack={onBack} onExports={onExports} />;
   if (clips.length < 2)
     return (
@@ -396,6 +434,7 @@ export function MontagePage({
           exportStarting={exportStarting}
           exportError={exportError ?? presetsError}
           presetError={presetError}
+          presetSaving={presetSaving}
           onChange={dispatchEditor}
           onPresetNameChange={(name) => {
             setPresetName(name);

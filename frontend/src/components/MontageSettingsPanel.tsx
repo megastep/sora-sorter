@@ -30,6 +30,7 @@ type Props = {
   exportStarting: boolean;
   exportError: string | null;
   presetError: string | null;
+  presetSaving: boolean;
   onChange: (patch: Partial<MontageSettings>) => void;
   onPresetNameChange: (name: string) => void;
   onSelectPreset: (preset: MontagePreset) => void;
@@ -50,6 +51,7 @@ export function MontageSettingsPanel(props: Props) {
     exportStarting,
     exportError,
     presetError,
+    presetSaving,
   } = props;
   const changeEndPage = (patch: Partial<MontageSettings['endPage']>) =>
     props.onChange({ endPage: { ...settings.endPage, ...patch } });
@@ -98,14 +100,14 @@ export function MontageSettingsPanel(props: Props) {
                 <Button
                   variant="outlined"
                   onClick={() => props.onSavePreset()}
-                  disabled={!presetName.trim()}
+                  disabled={!presetName.trim() || presetSaving}
                 >
                   Save new preset
                 </Button>
                 <Button
                   variant="outlined"
                   onClick={() => activePresetId && props.onSavePreset(activePresetId)}
-                  disabled={!activePresetId || !presetName.trim()}
+                  disabled={!activePresetId || !presetName.trim() || presetSaving}
                 >
                   Update preset
                 </Button>

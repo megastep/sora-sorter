@@ -425,9 +425,9 @@ def process_video(path_string: str, options: dict[str, Any]) -> dict[str, Any]:
         return {"status": "failed", "source_path": str(source), "error": f"{type(error).__name__}: {error}", "traceback": traceback.format_exc(limit=3)}
 
 
-def deduplicate(root: Path, processed: Path, duplicates: Path, output: Path, dry_run: bool) -> dict[str, int]:
+def deduplicate(root: Path, processed: Path, duplicates: Path, output: Path, montage: Path, dry_run: bool) -> dict[str, int]:
     groups: dict[str, list[Path]] = {}
-    for video in discover(root, True, [duplicates, output]):
+    for video in discover(root, True, [duplicates, output, montage]):
         groups.setdefault(sha256_file(video), []).append(video)
     manifest, moved = [], 0
     for file_hash, paths in sorted(groups.items()):
@@ -488,12 +488,13 @@ def main() -> int:
     processed = (root / args.processed_dir).resolve() if not args.processed_dir.is_absolute() else args.processed_dir.resolve()
     duplicates = (root / args.duplicates_dir).resolve() if not args.duplicates_dir.is_absolute() else args.duplicates_dir.resolve()
     output = (args.output_dir or root / "video_catalog_json").expanduser().resolve()
+    montage = (root / ".catalog_montages").resolve()
     if args.deduplicate:
-        result = deduplicate(root, processed, duplicates, output, args.dry_run)
+        result = deduplicate(root, processed, duplicates, output, montage, args.dry_run)
         print(f"Deduplication: groups={result['groups']}, {'would_move' if args.dry_run else 'moved'}={result['moved']}; manifest: {output / 'deduplication.json'}", flush=True)
         if not args.all and not args.videos:
             return 0
-    selected = discover(root, args.recursive, [processed, duplicates, output]) if args.all else [(root / value).resolve() if not Path(value).is_absolute() else Path(value).resolve() for value in args.videos]
+    selected = discover(root, args.recursive, [processed, duplicates, output, montage]) if args.all else [(root / value).resolve() if not Path(value).is_absolute() else Path(value).resolve() for value in args.videos]
     selected = list(dict.fromkeys(path for path in selected if is_video(path)))
     if args.limit is not None:
         selected = selected[:args.limit]

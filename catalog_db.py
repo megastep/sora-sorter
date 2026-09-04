@@ -151,7 +151,12 @@ def initialize(db: sqlite3.Connection) -> None:
 
 def list_montage_presets(db: sqlite3.Connection) -> list[dict[str, Any]]:
     return [
-        {**dict(row), "settings": json.loads(row["settings_json"])}
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "last_used_at": row["last_used_at"],
+            "settings": json.loads(row["settings_json"]),
+        }
         for row in db.execute(
             "SELECT id, name, settings_json, last_used_at FROM montage_presets "
             "ORDER BY last_used_order DESC, last_used_at DESC, id DESC"

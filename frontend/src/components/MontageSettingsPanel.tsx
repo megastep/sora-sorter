@@ -114,7 +114,7 @@ export function MontageSettingsPanel(props: Props) {
                 </Button>
               </Box>
               {activePresetId && (
-                <Button color="error" onClick={props.onDeletePreset}>
+                <Button color="error" disabled={presetSaving} onClick={props.onDeletePreset}>
                   Delete preset
                 </Button>
               )}

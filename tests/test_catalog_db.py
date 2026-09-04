@@ -168,7 +168,9 @@ class CatalogDatabaseTests(unittest.TestCase):
         self.assertEqual(videos[0]["review_status"], "approved")
 
     def test_preset_name_conflicts_are_validation_errors(self) -> None:
-        save_montage_preset(self.database, "Social", {})
+        preset = save_montage_preset(self.database, "Social", {})
+        self.assertNotIn("settings_json", preset)
+        self.assertEqual(preset["settings"], {})
 
         with self.assertRaisesRegex(ValueError, "already exists"):
             save_montage_preset(self.database, "social", {})

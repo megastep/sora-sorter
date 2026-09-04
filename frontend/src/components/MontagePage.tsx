@@ -264,6 +264,7 @@ export function MontagePage({
   const [exportStarting, setExportStarting] = useState(false);
   const [presetError, setPresetError] = useState<string | null>(null);
   const [presetSaving, setPresetSaving] = useState(false);
+  const [presetDeleting, setPresetDeleting] = useState(false);
   const [clipsReady, setClipsReady] = useState(false);
   const [clipsError, setClipsError] = useState<string | null>(null);
   const [presetsReady, setPresetsReady] = useState(false);
@@ -383,6 +384,21 @@ export function MontagePage({
       setPresetSaving(false);
     }
   };
+  const deletePreset = async (presetId: number) => {
+    if (presetDeleting) return;
+    setPresetDeleting(true);
+    try {
+      await deleteMontagePreset(presetId);
+      setPresets((current) => current.filter((preset) => preset.id !== presetId));
+      setActivePresetId(null);
+      setPresetName('');
+      setPresetError(null);
+    } catch (error) {
+      setPresetError(error instanceof Error ? error.message : 'Could not delete preset.');
+    } finally {
+      setPresetDeleting(false);
+    }
+  };
   const dimensions = dimensionsFor(settings.format);
   const totalFrames = montageDurationInFrames(spec);
   const previewSpec = useMemo<MontageSpec>(() => previewableSpec(spec), [spec]);
@@ -472,7 +488,7 @@ export function MontagePage({
           exportStarting={exportStarting}
           exportError={exportError ?? presetsError}
           presetError={presetError}
-          presetSaving={presetSaving}
+          presetSaving={presetSaving || presetDeleting}
           onChange={dispatchEditor}
           onPresetNameChange={(name) => {
             setPresetName(name);
@@ -495,17 +511,7 @@ export function MontagePage({
             setPresetName('');
           }}
           onSavePreset={(presetId) => void savePreset(presetId)}
-          onDeletePreset={() =>
-            void deleteMontagePreset(activePresetId!)
-              .then(() => {
-                setPresets((current) => current.filter((preset) => preset.id !== activePresetId));
-                setActivePresetId(null);
-                setPresetName('');
-              })
-              .catch((error: unknown) =>
-                setPresetError(error instanceof Error ? error.message : 'Could not delete preset.'),
-              )
-          }
+          onDeletePreset={() => void deletePreset(activePresetId!)}
           onSoftwareFallback={() => void startExport(true)}
         />
       </Box>

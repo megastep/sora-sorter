@@ -590,7 +590,10 @@ export function MontagePage({
           onSoftwareFallback={() => void startExport(true)}
         />
       </Box>
-      <Dialog open={Boolean(accelerationReason)} onClose={() => setAccelerationReason(null)}>
+      <Dialog
+        open={active && Boolean(accelerationReason)}
+        onClose={() => setAccelerationReason(null)}
+      >
         <DialogTitle>Hardware acceleration unavailable</DialogTitle>
         <DialogContent>
           <Typography>{accelerationReason}</Typography>

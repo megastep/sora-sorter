@@ -40,6 +40,11 @@ type Props = {
   onSoftwareFallback: () => void;
 };
 
+const clampNumber = (value: string, minimum: number, maximum: number) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(maximum, Math.max(minimum, number)) : minimum;
+};
+
 // fallow-ignore-next-line complexity -- settings controls share one preview-backed editor state and validation surface.
 export function MontageSettingsPanel(props: Props) {
   const {
@@ -94,6 +99,7 @@ export function MontageSettingsPanel(props: Props) {
               <TextField
                 label="Preset name"
                 value={presetName}
+                disabled={presetSaving}
                 onChange={(event) => props.onPresetNameChange(event.target.value)}
                 error={Boolean(presetError)}
                 helperText={presetError}
@@ -156,7 +162,9 @@ export function MontageSettingsPanel(props: Props) {
             type="number"
             value={settings.titleFontSize}
             slotProps={{ htmlInput: { min: 32, max: 180 } }}
-            onChange={(event) => props.onChange({ titleFontSize: Number(event.target.value) })}
+            onChange={(event) =>
+              props.onChange({ titleFontSize: clampNumber(event.target.value, 32, 180) })
+            }
           />
           <TextField
             label="Subtext font size"
@@ -164,7 +172,7 @@ export function MontageSettingsPanel(props: Props) {
             value={settings.titleSubtitleFontSize}
             slotProps={{ htmlInput: { min: 16, max: 120 } }}
             onChange={(event) =>
-              props.onChange({ titleSubtitleFontSize: Number(event.target.value) })
+              props.onChange({ titleSubtitleFontSize: clampNumber(event.target.value, 16, 120) })
             }
           />
         </Box>
@@ -238,7 +246,9 @@ export function MontageSettingsPanel(props: Props) {
                 type="number"
                 value={settings.endPage.fontSize}
                 slotProps={{ htmlInput: { min: 32, max: 180 } }}
-                onChange={(event) => changeEndPage({ fontSize: Number(event.target.value) })}
+                onChange={(event) =>
+                  changeEndPage({ fontSize: clampNumber(event.target.value, 32, 180) })
+                }
               />
               <TextField
                 label="Subtext font size"
@@ -246,7 +256,7 @@ export function MontageSettingsPanel(props: Props) {
                 value={settings.endPage.subtitleFontSize}
                 slotProps={{ htmlInput: { min: 16, max: 120 } }}
                 onChange={(event) =>
-                  changeEndPage({ subtitleFontSize: Number(event.target.value) })
+                  changeEndPage({ subtitleFontSize: clampNumber(event.target.value, 16, 120) })
                 }
               />
             </Box>

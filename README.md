@@ -215,6 +215,16 @@ Use **Import / Reimport** after adding new JSON records or rerunning analysis.
 The import is idempotent: one record is kept per SHA-256 ID, imported data is
 refreshed, and saved descriptive/editorial overrides remain in place.
 
+### Find missing media
+
+To list catalog records whose last stored media path no longer resolves, run:
+
+```sh
+uv run python scripts/report_missing_videos.py --library-root /path/to/sora-library
+```
+
+The CSV output contains each original filename and its last stored SHA-256.
+
 ### Catalog and montage CLI
 
 The repository agent skill includes a named-command CLI for querying catalog

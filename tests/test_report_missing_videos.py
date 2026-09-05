@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from catalog_db import connect, initialize
 
@@ -16,6 +18,21 @@ SPEC.loader.exec_module(report_missing_videos)
 
 
 class ReportMissingVideosTests(unittest.TestCase):
+    def test_loads_library_root_without_overriding_the_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            env_file = Path(temporary) / ".env"
+            env_file.write_text("VIDEO_CATALOG_LIBRARY_ROOT=/from-file\n", encoding="utf-8")
+
+            with patch.dict(os.environ, {"VIDEO_CATALOG_LIBRARY_ROOT": "/from-shell"}, clear=True):
+                report_missing_videos.load_local_environment(env_file)
+
+                self.assertEqual(os.environ["VIDEO_CATALOG_LIBRARY_ROOT"], "/from-shell")
+
+            with patch.dict(os.environ, {}, clear=True):
+                report_missing_videos.load_local_environment(env_file)
+
+                self.assertEqual(os.environ["VIDEO_CATALOG_LIBRARY_ROOT"], "/from-file")
+
     def test_reports_missing_media_with_the_last_stored_checksum(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

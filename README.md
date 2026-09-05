@@ -220,10 +220,12 @@ refreshed, and saved descriptive/editorial overrides remain in place.
 To list catalog records whose last stored media path no longer resolves, run:
 
 ```sh
-uv run python scripts/report_missing_videos.py --library-root /path/to/sora-library
+uv run python scripts/report_missing_videos.py
 ```
 
-The CSV output contains each original filename and its last stored SHA-256.
+The script reads `VIDEO_CATALOG_LIBRARY_ROOT` from `.env`; pass
+`--library-root /path/to/sora-library` to override it. The CSV output contains
+each original filename and its last stored SHA-256.
 
 ### Catalog and montage CLI
 

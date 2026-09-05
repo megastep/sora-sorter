@@ -2,13 +2,14 @@
 """Report catalog records whose last known media path is unavailable.
 
 Example:
-  uv run python scripts/report_missing_videos.py --library-root /path/to/library
+  uv run python scripts/report_missing_videos.py
 """
 from __future__ import annotations
 
 import argparse
 import csv
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,20 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from catalog_db import connect, initialize
+
+
+def load_local_environment(path: Path) -> None:
+    """Load simple KEY=VALUE entries without overriding the calling shell."""
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        entry = line.strip()
+        if not entry or entry.startswith("#") or "=" not in entry:
+            continue
+        key, value = entry.split("=", 1)
+        key = key.strip()
+        if key:
+            os.environ.setdefault(key, value.strip().strip("\"'"))
 
 
 def last_stored_sha(record: dict[str, Any], fallback: str) -> str:
@@ -57,13 +72,21 @@ def missing_videos(database_path: Path, library_root: Path) -> list[tuple[str, s
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--library-root", required=True, type=Path, help="Configured media library root")
+    parser.add_argument(
+        "--library-root",
+        type=Path,
+        default=os.environ.get("VIDEO_CATALOG_LIBRARY_ROOT"),
+        help="Configured media library root (defaults to VIDEO_CATALOG_LIBRARY_ROOT)",
+    )
     parser.add_argument("--database", type=Path, help="Catalog SQLite file (defaults to <library-root>/catalog.sqlite)")
     return parser.parse_args()
 
 
 def main() -> int:
+    load_local_environment(PROJECT_ROOT / ".env")
     args = parse_args()
+    if args.library_root is None:
+        raise SystemExit("--library-root or VIDEO_CATALOG_LIBRARY_ROOT is required")
     library_root = args.library_root.expanduser().resolve()
     if not library_root.is_dir():
         raise SystemExit(f"Video library does not exist or is not a directory: {library_root}")

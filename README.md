@@ -227,6 +227,26 @@ The script reads `VIDEO_CATALOG_LIBRARY_ROOT` from `.env`; pass
 `--library-root /path/to/sora-library` to override it. The CSV output contains
 each original filename and its last stored SHA-256.
 
+To scan the library for supported media with a matching checksum, add
+`--find-by-sha`:
+
+```sh
+uv run python scripts/report_missing_videos.py --find-by-sha
+```
+
+This adds a `located_path` column and does not change catalog records or move files.
+
+To recover confirmed matches, move them into the library's `processed/` directory,
+and update both stored paths in the catalog, use:
+
+```sh
+uv run python scripts/report_missing_videos.py --fix
+```
+
+`--fix` implies `--find-by-sha`. It never overwrites an existing file: a collision
+receives a checksum-based suffix. If a database write fails after moving a file,
+the CSV reports the new path so rerunning `--fix` can complete the catalog update.
+
 ### Catalog and montage CLI
 
 The repository agent skill includes a named-command CLI for querying catalog

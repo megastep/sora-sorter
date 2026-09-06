@@ -88,6 +88,12 @@ const previewState = (spec: MontageSpec) => {
   return { previewSpec, previewFrames, timingError: previewTimingError(spec, previewFrames) };
 };
 
+export const visibleExportJob = (
+  job: RenderJob | null,
+  jobSelectionKey: string,
+  selectionKey: string,
+) => (job?.status === 'completed' && jobSelectionKey !== selectionKey ? null : job);
+
 type PresetDeletionHandlers = {
   setPresets: Dispatch<SetStateAction<MontagePreset[]>>;
   setActivePresetId: Dispatch<SetStateAction<number | null>>;
@@ -129,12 +135,14 @@ function MontageHeader({
   job,
   exportStarting,
   onBack,
+  onExports,
   onExport,
 }: {
   totalFrames: number;
   job: RenderJob | null;
   exportStarting: boolean;
   onBack: () => void;
+  onExports: () => void;
   onExport: () => void;
 }) {
   return (
@@ -151,9 +159,12 @@ function MontageHeader({
         bgcolor: 'background.paper',
       }}
     >
-      <Button startIcon={<ArrowBackRounded />} onClick={onBack}>
-        Back to library
-      </Button>
+      <Stack direction="row" spacing={1}>
+        <Button startIcon={<ArrowBackRounded />} onClick={onBack}>
+          Back to library
+        </Button>
+        <Button onClick={onExports}>Generated videos</Button>
+      </Stack>
       <Box sx={{ mr: { sm: 'auto' } }}>
         <Typography variant="h6">Montage</Typography>
         <Typography variant="caption" color="text.secondary">
@@ -391,6 +402,8 @@ export function MontagePage({
   const playerRef = useRef<PlayerRef>(null);
   const specRef = useRef<MontageSpec>({ clips: [], ...initialEditorState });
   const clipMembershipKey = useMemo(() => [...ids].sort().join('\u0000'), [ids]);
+  const selectionKey = ids.join('\u0000');
+  const [jobSelectionKey, setJobSelectionKey] = useState(selectionKey);
   const selectedIdsRef = useRef(ids);
   const [job, setJob] = useActiveRenderJob(setExportError);
   useEffect(() => {
@@ -510,6 +523,7 @@ export function MontagePage({
   const dimensions = dimensionsFor(settings.format);
   const totalFrames = montageDurationInFrames(spec);
   const { previewSpec, previewFrames, timingError } = useMemo(() => previewState(spec), [spec]);
+  const visibleJob = visibleExportJob(job, jobSelectionKey, selectionKey);
   // fallow-ignore-next-line complexity -- capability handling and render errors must share the same user-visible export state.
   const startExport = async (softwareFallback = false) => {
     const exportSpec = previewableSpec(specRef.current);
@@ -525,7 +539,9 @@ export function MontagePage({
           return;
         }
       }
-      setJob(await renderMontage(exportSpec, softwareFallback));
+      const nextJob = await renderMontage(exportSpec, softwareFallback);
+      setJobSelectionKey(selectionKey);
+      setJob(nextJob);
     } catch (error) {
       setExportError(error instanceof Error ? error.message : 'Could not start the export.');
     } finally {
@@ -559,6 +575,7 @@ export function MontagePage({
         job={job}
         exportStarting={exportStarting}
         onBack={onBack}
+        onExports={onExports}
         onExport={() => void startExport()}
       />
       <Box
@@ -586,7 +603,7 @@ export function MontagePage({
           presets={presets}
           activePresetId={activePresetId}
           presetName={presetName}
-          job={job}
+          job={visibleJob}
           exportStarting={exportStarting}
           exportError={exportError ?? presetsError}
           presetError={presetError}

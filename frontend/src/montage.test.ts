@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { type RenderJob } from './api';
+import { visibleExportJob } from './components/MontagePage';
 import {
   addToSelection,
   defaultMontageSettings,
@@ -100,5 +102,28 @@ describe('ordered montage selection', () => {
     expect(
       montageDurationInFrames({ ...spec, transition: 'film-cut', transitionDuration: 0.5 }),
     ).toBe(345);
+  });
+});
+
+describe('montage export state', () => {
+  const completedJob: RenderJob = {
+    id: 'completed-export',
+    status: 'completed',
+    progress: 1,
+    stage: 'Completed',
+  };
+
+  it('hides a completed download after the selected montage changes', () => {
+    expect(visibleExportJob(completedJob, 'clip-a\u0000clip-b', 'clip-a\u0000clip-c')).toBeNull();
+  });
+
+  it('keeps an active export visible so another export cannot conflict with it', () => {
+    expect(
+      visibleExportJob(
+        { ...completedJob, status: 'rendering', progress: 0.5, stage: 'Rendering' },
+        'clip-a\u0000clip-b',
+        'clip-a\u0000clip-c',
+      ),
+    ).toMatchObject({ id: 'completed-export', status: 'rendering' });
   });
 });

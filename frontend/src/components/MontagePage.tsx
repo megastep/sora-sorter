@@ -290,9 +290,13 @@ function MontagePreview({
   clips: MontageSpec['clips'];
   onTimelineChange: (clips: MontageSpec['clips']) => void;
 }) {
+  const previewMaxWidth = dimensions.height > dimensions.width ? 400 : 960;
+
   return (
     <Box sx={{ display: 'grid', gap: 2, minWidth: 0 }}>
-      <Paper sx={{ p: 1, bgcolor: 'common.black' }}>
+      <Paper
+        sx={{ width: '100%', maxWidth: previewMaxWidth, mx: 'auto', p: 1, bgcolor: 'common.black' }}
+      >
         <Player
           ref={playerRef}
           component={MontageComposition}
